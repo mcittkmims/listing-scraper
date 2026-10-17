@@ -1,24 +1,29 @@
-# Apartment Lens · Scraper
+# Apartment Lens · Scraper service
 
-The scraper of [Apartment Lens](https://github.com/mcittkmims/apartment-lens). It collects ads from Moldovan listing sites and turns them into clean, comparable data. It runs as its own process, so a crash or a block never takes the website down.
+The scraper of [Apartment Lens](https://github.com/mcittkmims/apartment-lens). It collects ads from 999.md and real-estate agency websites and turns them into clean, comparable data. It runs as its own process, so a crash or a block never takes the website down.
 
 > **Status:** design stage. This README describes the plan; there is no code yet.
 
 ## What it does
 
-- Crawls 999.md and makler.md every few hours, later also lalafo.md and agency sites.
-- Normalizes every ad into the same fields, whatever the site.
+- Crawls 999.md and agency websites every few hours.
+- Normalizes every ad into the same fields, whatever the source.
 - Saves the ad, a price snapshot when price or status changed, the raw page, and any new photos.
-- Marks ads as gone when they disappear from a site.
+- Marks ads as gone when they disappear from a source.
+
+## Sources
+
+- **999.md:** the main source, with most of the market. One parser.
+- **Agency websites:** one small parser per agency. Fewer ads, but many of their listings also appear on 999.md, which is exactly what the matching connects.
 
 ## How a crawl works
 
 ```
-site page → site parser → shared normalizer → database
+source page → source parser → shared normalizer → database
 ```
 
-1. **A parser per site** reads only that site's layout and pulls out raw values. Check the browser's Network tab first: if a site loads its data as JSON, parse that instead of the HTML.
-2. **The shared normalizer** turns raw values into clean fields, the same way for every site.
+1. **A parser per source** reads only that site's layout and pulls out raw values. Check the browser's Network tab first: if a site loads its data as JSON, parse that instead of the HTML.
+2. **The shared normalizer** turns raw values into clean fields, the same way for every source.
 3. **Saving:**
    - The ad goes into `ingest.listing`.
    - A snapshot goes into `ingest.listing_snapshot`, only if price or status changed.
@@ -37,7 +42,7 @@ site page → site parser → shared normalizer → database
 | Area | "54 m²", "54 mp", "54 кв.м" | Total m², flagged if only living area is given |
 | Floor | "3/9", "etajul 3 din 9", "3 этаж из 9" | Floor 3 of 9 |
 | Address | "str. Mircea cel Bătrân", "ул. Мирча чел Бэтрын" | One spelling, using a RO/RU alias table and the same diacritics |
-| Location | Site's map pin, or address only | A map point: the pin, or geocoded with Nominatim |
+| Location | The ad's map pin, or address only | A map point: the pin, or the address looked up in the geocoder |
 | Building / finish | "seria 143", "bloc nou", "variantă albă", "евроремонт" | A fixed list of values |
 | Phone | "069 123 456", "+373 69123456" | `+37369123456`, then hashed; the number itself is never stored |
 
@@ -57,7 +62,7 @@ site page → site parser → shared normalizer → database
 
 ## Runs on
 
-The old laptop, on a schedule.
+The server, on a schedule.
 
 ## Tech
 
