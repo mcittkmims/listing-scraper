@@ -30,10 +30,24 @@ public final class AddressNormalizer {
      * @param building the map's position of this house number on that street, when the map has it
      */
     public record Address(String streetType, String streetName, String streetMatch, String houseNumber,
-                          StreetGazetteer.Street street, GeoPoint building) {
+                          StreetGazetteer.Street street, GeoPoint building, String areaName) {
 
-        static final Address NONE = new Address(null, null, null, null, null, null);
+        static final Address NONE = new Address(null, null, null, null, null, null, null);
+
+        Address(String streetType, String streetName, String streetMatch, String houseNumber,
+                StreetGazetteer.Street street, GeoPoint building) {
+            this(streetType, streetName, streetMatch, houseNumber, street, building, null);
+        }
+
+        Address withArea(String area) {
+            return new Address(streetType, streetName, streetMatch, houseNumber, street, building, area);
+        }
     }
+
+    /** Words that name an area, not a street: "Cartierul Cluj", "Satul German", "ЖК Grand Park". */
+    private static final Pattern AREA = Pattern.compile(
+            "^(cartier(ul)?|complex(ul)?( locativ| rezidential)?|satul|sat|zona|microraion(ul)?|ansamblu(l)?( rezidential)?"
+                    + "|жк|жилой комплекс|микрорайон|квартал|коттеджный городок|residence|residential)( |$)");
 
     private final StreetGazetteer streets;
     private final PlaceGazetteer places;
@@ -79,9 +93,14 @@ public final class AddressNormalizer {
             street = null;
         }
         if (street == null) {
-            return new Address(null, null, null, houseValue(house, houseRaw, issues), null, null);
+            return fromPin(null, houseValue(house, houseRaw, issues), pin);
         }
         street = mainPart(street, locality, pin);
+        String area = areaName(street, locality);
+        if (area != null) {
+            // Not a street: keep it as the area, and take the street from the seller's pin if it shows one.
+            return fromPin(null, houseValue(house, houseRaw, issues), pin).withArea(area);
+        }
 
         // A number typed after the street name: used when the house field gives none, dropped when it
         // repeats the house number. Never cut from a name that ends in a number ("31 August 1989").
@@ -107,16 +126,24 @@ public final class AddressNormalizer {
             if (split.type() == null) {
                 issues.add("street", streetRaw, "unparsed");
             }
-            return new Address(null, null, null, houseNumber, null, null); // only a type word, "str": no street given
+            return fromPin(null, houseNumber, pin); // only a type word, "str": no street given
         }
         if (namesLocality(split.name(), locality)) {
             // "Trușeni" or "s. Trușeni" as the street of an ad in Trușeni: the seller gave no street.
-            return new Address(null, null, null, houseNumber, null, null);
+            return fromPin(null, houseNumber, pin);
         }
         Optional<Match> match = resolve(split.name(), split.type(), locality, pin);
         if (match.isEmpty()) {
             if (locality != null) {
                 issues.add("street", streetRaw, "unresolved");
+            }
+            // The seller named a street: the pin's street is used only if it looks like what they wrote
+            // ("ул. Буковина" on Strada Bucovina). A different street at the pin is not put in its place:
+            // theirs may be missing from the map.
+            Address atPin = fromPin(null, houseNumber, pin);
+            if (atPin.street() != null && streets.likeness(split.name(), atPin.street()) >= StreetGazetteer.NEARBY_MIN) {
+                return new Address(atPin.streetType(), atPin.streetName(), "nearby", houseNumber, atPin.street(),
+                        atPin.building());
             }
             return new Address(split.type(), split.name(), "unresolved", houseNumber, null, null);
         }
@@ -155,6 +182,19 @@ public final class AddressNormalizer {
             kept.add(part.strip());
         }
         return kept.isEmpty() ? s : String.join(", ", kept);
+    }
+
+    /**
+     * The street the seller's own pin stands on, when the seller gave no street ("-", ".", "str", the
+     * village name). Marked {@code from_pin}: it comes from the pin, not from what the seller wrote.
+     */
+    private Address fromPin(String type, String houseNumber, GeoPoint pin) {
+        Optional<StreetGazetteer.Street> at = pin == null ? Optional.empty() : streets.streetAt(pin);
+        if (at.isEmpty()) {
+            return new Address(type, null, null, houseNumber, null, null);
+        }
+        StreetGazetteer.Street st = at.get();
+        return new Address(st.type(), st.name(), "from_pin", houseNumber, st, streets.address(st, houseNumber).orElse(null));
     }
 
     private Optional<Match> resolve(String street, Place locality, GeoPoint pin) {
@@ -216,6 +256,24 @@ public final class AddressNormalizer {
         }
         String key = PlaceGazetteer.placeKey(name);
         return key.equals(Text.fold(locality.nameRo())) || (!locality.nameRu().isEmpty() && key.equals(Text.fold(locality.nameRu())));
+    }
+
+    /**
+     * The area named instead of a street, or null: words like "cartierul" or "ЖК", or the name of a
+     * district or quarter of the locality ("Poiana Domnească").
+     */
+    String areaName(String street, Place locality) {
+        String key = Text.fold(street);
+        if (AREA.matcher(key).find()) {
+            return street;
+        }
+        StreetTypes.Split split = StreetTypes.split(street);
+        if (split.type() == null && split.name() != null && locality != null
+                && places.district(split.name(), locality).isPresent()
+                && resolve(split.name(), null, locality, null).isEmpty()) {
+            return street;
+        }
+        return null;
     }
 
     /** "124" and "124F" name the same house number in a street field. */

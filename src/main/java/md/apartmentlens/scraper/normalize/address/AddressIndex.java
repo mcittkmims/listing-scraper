@@ -176,6 +176,36 @@ public final class AddressIndex {
         return best;
     }
 
+    /** A street and the distance from a point to its nearest building. */
+    public record Nearest(int street, double km) {
+    }
+
+    /** For each street with a building within {@code radiusKm}, its nearest building's distance; nearest first. */
+    public List<Nearest> nearestBuildings(GeoPoint p, double radiusKm) {
+        Map<Integer, Double> best = new HashMap<>();
+        int cells = (int) Math.ceil(radiusKm / 0.35);
+        int ci = (int) Math.floor(p.lat() / CELL_DEG);
+        int cj = (int) Math.floor(p.lon() / CELL_DEG);
+        for (int di = -cells; di <= cells; di++) {
+            for (int dj = -cells; dj <= cells; dj++) {
+                int[] list = grid.get(key(ci + di, cj + dj));
+                if (list == null) {
+                    continue;
+                }
+                for (int i : list) {
+                    double d = km(p, i);
+                    if (d <= radiusKm) {
+                        best.merge(street[i], d, Math::min);
+                    }
+                }
+            }
+        }
+        List<Nearest> out = new ArrayList<>();
+        best.forEach((s, d) -> out.add(new Nearest(s, d)));
+        out.sort((x, y) -> Double.compare(x.km(), y.km()));
+        return out;
+    }
+
     /** The streets that have a building within {@code radiusKm} of the point, nearest first. */
     public Set<Integer> streetsAround(GeoPoint p, double radiusKm) {
         record Hit(int street, double km) {

@@ -293,12 +293,7 @@ public final class StreetGazetteer {
         record Scored(Street street, double score) {
         }
         List<Scored> scored = streetsAround(pin, NEARBY_KM).stream()
-                .map(s -> new Scored(s, Math.max(Math.max(
-                        s.keyRo().isEmpty() ? 0 : Math.max(Text.similarity(latin, s.keyRo()),
-                                Text.similarity(stem(latin), stem(s.keyRo()))),
-                        cyrillic && !s.keyRu().isEmpty() ? Text.similarity(key, s.keyRu())
-                                : s.translitRu().isEmpty() ? 0 : Text.similarity(latin, s.translitRu())),
-                        !latinStem.isEmpty() && !s.keyRo().isEmpty() && latinStem.equals(stem(s.keyRo())) ? STEM_SCORE : 0)))
+                .map(s -> new Scored(s, likeness(key, latin, latinStem, cyrillic, s)))
                 .sorted(Comparator.comparingDouble(Scored::score).reversed())
                 .toList();
         if (scored.isEmpty() || scored.getFirst().score() < NEARBY_MIN) {
@@ -313,6 +308,50 @@ public final class StreetGazetteer {
         }
         Street st = best.street();
         return Optional.of(new Match(st.name(), st.type(), st, "nearby"));
+    }
+
+    /** How much a seller's street name looks like a street's name, in any spelling: 0 to 1. */
+    public double likeness(String name, Street s) {
+        String key = Text.fold(name);
+        boolean cyrillic = Text.hasCyrillic(name);
+        String latin = cyrillic ? Text.cyrillicToLatinKey(name) : key;
+        return likeness(key, latin, stem(latin), cyrillic, s);
+    }
+
+    private static double likeness(String key, String latin, String latinStem, boolean cyrillic, Street s) {
+        double ro = s.keyRo().isEmpty() ? 0 : Math.max(Text.similarity(latin, s.keyRo()),
+                Text.similarity(latinStem, stem(s.keyRo())));
+        double ru = cyrillic && !s.keyRu().isEmpty() ? Text.similarity(key, s.keyRu())
+                : s.translitRu().isEmpty() ? 0 : Text.similarity(latin, s.translitRu());
+        double stems = !latinStem.isEmpty() && !s.keyRo().isEmpty() && latinStem.equals(stem(s.keyRo())) ? STEM_SCORE : 0;
+        return Math.max(Math.max(ro, ru), stems);
+    }
+
+    /** The building at the pin must be this close, and the next street's buildings clearly farther. */
+    static final double AT_PIN_KM = 0.04;
+
+    /**
+     * The street the pin stands on, from the buildings around it: the nearest building is within 40 m and
+     * every other street's buildings are clearly farther (a pin on a corner gives nothing).
+     */
+    public Optional<Street> streetAt(GeoPoint pin) {
+        List<AddressIndex.Nearest> near = addresses.nearestBuildings(pin, 0.1);
+        if (near.isEmpty() || near.getFirst().km() > AT_PIN_KM) {
+            return Optional.empty();
+        }
+        Street first = streets.get(near.getFirst().street());
+        double d1 = near.getFirst().km();
+        for (AddressIndex.Nearest n : near.subList(1, near.size())) {
+            Street other = streets.get(n.street());
+            if (sameName(other, first)) {
+                continue; // another piece or spelling of the same street
+            }
+            if (n.km() < d1 + 0.02 || n.km() < 1.5 * d1) {
+                return Optional.empty();
+            }
+            break;
+        }
+        return Optional.of(first);
     }
 
     /**
@@ -343,8 +382,10 @@ public final class StreetGazetteer {
             }
             nameWords.remove(i);
         }
-        // A number left over is another street: "Stradela 2 Muncești" is not Șoseaua Muncești.
-        if (nameWords.stream().anyMatch(w -> w.chars().anyMatch(Character::isDigit))) {
+        // A lane number left over is another street: "Stradela 2 Muncești" is not Șoseaua Muncești. A year
+        // at the end is part of the name: "31 August" is "31 August 1989".
+        String firstWord = nameKey.split(" ")[0];
+        if (nameWords.contains(firstWord) && firstWord.chars().allMatch(Character::isDigit)) {
             return false;
         }
         // Either shortened, or all words given in another order ("Deleanu Liviu" for Liviu Deleanu).

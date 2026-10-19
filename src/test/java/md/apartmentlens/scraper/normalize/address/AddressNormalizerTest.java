@@ -116,7 +116,7 @@ class AddressNormalizerTest {
     @Test
     void hiddenValues() {
         Issues issues = new Issues();
-        var a = addresses.normalize("-", ".", chisinau, null, issues);
+        var a = addresses.normalize("-", ".", chisinau, null, issues); // no pin: nothing to go on
         assertThat(a.streetName()).isNull();
         assertThat(a.houseNumber()).isNull();
     }
@@ -182,6 +182,46 @@ class AddressNormalizerTest {
         var inCricova = addresses.normalize("str. Mihail Sadoveanu", "1", cricova, null, new Issues());
         assertThat(inCricova.street().point().kmTo(cricova.point())).isLessThan(3.0);
         assertThat(places.ownerOf(inCricova.street().point())).contains(cricova);
+    }
+
+    @Test
+    void aYearAtTheEndOfTheNameMayBeLeftOut() {
+        Place ialoveni = places.settlement("Ialoveni", "Ialoveni", null).orElseThrow();
+        var a = addresses.normalize("str. 31 August", "5", ialoveni, null, new Issues());
+        assertThat(a.streetName()).isEqualTo("31 August 1989");
+    }
+
+    @Test
+    void theStreetAtTheSellersPinWhenTheSellerGaveNone() {
+        // A hidden street ("-") with the seller's own pin on Strada Bucovina, among its buildings.
+        var hidden = pinned("-", ".", 47.06907, 28.891363);
+        assertThat(hidden.streetMatch()).isEqualTo("from_pin");
+        assertThat(hidden.streetName()).isEqualTo("Bucovina");
+        // A pin with no building within 40 m gives nothing.
+        assertThat(pinned("-", ".", 46.9600, 28.9500).streetName()).isNull();
+    }
+
+    @Test
+    void areasWrittenInsteadOfStreets() {
+        var cluj = chisinau("Cartierul Cluj", ".");
+        assertThat(cluj.areaName()).isEqualTo("Cartierul Cluj");
+        assertThat(cluj.streetName()).isNull();
+        assertThat(chisinau("ЖК Grand Park", ".").areaName()).isEqualTo("ЖК Grand Park");
+        // With the seller's pin among a street's buildings, that street too.
+        var pinnedArea = pinned("Complexul locativ Ciocana Nouă", "5", 47.06907, 28.891363);
+        assertThat(pinnedArea.areaName()).isNotNull();
+        assertThat(pinnedArea.streetMatch()).isEqualTo("from_pin");
+        // A real street is not an area.
+        assertThat(chisinau("str. Ismail", "1").areaName()).isNull();
+    }
+
+    @Test
+    void aNamedStreetIsNotReplacedByADifferentOneAtThePin() {
+        // The seller wrote a street the map does not know; the pin stands among Bucovina's buildings.
+        // Writing a different street there would be a guess, so it stays as written.
+        var a = pinned("str. Luceafăr Mare", "5", 47.06907, 28.891363);
+        assertThat(a.streetMatch()).isEqualTo("unresolved");
+        assertThat(a.streetName()).isEqualTo("Luceafăr Mare");
     }
 
     @Test

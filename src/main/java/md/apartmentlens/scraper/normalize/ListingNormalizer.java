@@ -24,7 +24,7 @@ import md.apartmentlens.scraper.text.Text;
  */
 public final class ListingNormalizer {
 
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     private static final Pattern COUNT = Pattern.compile("(\\d{1,2})");
     private static final Pattern REGION_SUFFIX = Pattern.compile("\\s*\\b(mun\\.?|municipiul|r-nul|raionul|UTA)\\s*",
@@ -136,7 +136,7 @@ public final class ListingNormalizer {
         LocationNormalizer.Location location = locations.locate(pin, address, districtPlace, place, issues);
         out.streetRaw(Text.clean(ad.street())).houseNumberRaw(Text.clean(ad.houseNumber()))
                 .streetType(address.streetType()).streetName(address.streetName())
-                .streetMatch(address.streetMatch()).houseNumber(address.houseNumber())
+                .streetMatch(address.streetMatch()).areaName(address.areaName()).houseNumber(address.houseNumber())
                 .point(location.point()).sellerPin(ad.pin()).locationSource(location.source())
                 .locationPrecision(location.precision());
 

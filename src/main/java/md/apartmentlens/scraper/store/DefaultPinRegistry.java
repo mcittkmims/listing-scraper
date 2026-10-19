@@ -38,7 +38,8 @@ public class DefaultPinRegistry implements DefaultPins {
                         with p as (
                             select round(st_y(pin::geometry) * 100000)::bigint as lat,
                                    round(st_x(pin::geometry) * 100000)::bigint as lon,
-                                   street_name
+                                   -- what sellers wrote, not a street derived from the pin itself
+                                   case when street_match = 'from_pin' then null else street_name end as street_name
                             from ingest.listing where pin is not null and status = 'active'),
                         s as (select lat, lon, street_name, count(*) as n from p group by lat, lon, street_name)
                         select lat, lon from s group by lat, lon

@@ -81,6 +81,7 @@ public class ListingRepository {
         COLUMNS.put("street_type", NormalizedListing::streetType);
         COLUMNS.put("street_name", NormalizedListing::streetName);
         COLUMNS.put("street_match", NormalizedListing::streetMatch);
+        COLUMNS.put("area_name", NormalizedListing::areaName);
         COLUMNS.put("house_number", NormalizedListing::houseNumber);
         COLUMNS.put("location_source", NormalizedListing::locationSource);
         COLUMNS.put("location_precision", NormalizedListing::locationPrecision);

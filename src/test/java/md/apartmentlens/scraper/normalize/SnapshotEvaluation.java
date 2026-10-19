@@ -66,7 +66,8 @@ class SnapshotEvaluation {
         Map<Long, Map<String, Integer>> streetsByPin = new HashMap<>();
         for (SourceAd ad : ads) {
             if (ad.pin() != null) {
-                String street = first.normalize(ad, day).streetName();
+                NormalizedListing l0 = first.normalize(ad, day);
+                String street = "from_pin".equals(l0.streetMatch()) ? null : l0.streetName();
                 streetsByPin.computeIfAbsent(DefaultPins.key(ad.pin()), k -> new HashMap<>())
                         .merge(String.valueOf(street), 1, Integer::sum);
             }
@@ -105,7 +106,8 @@ class SnapshotEvaluation {
                             + l.houseNumber() + "\t" + l.locationSource() + "/" + l.locationPrecision() + "\t" + ad.url());
                 }
                 boolean ownPin = ad.pin() != null && "pin".equals(l.locationSource());
-                if (ownPin && l.streetName() != null && !"unresolved".equals(l.streetMatch())) {
+                if (ownPin && l.streetName() != null && !"unresolved".equals(l.streetMatch())
+                        && !"from_pin".equals(l.streetMatch())) {
                     List<StreetGazetteer.Street> around = streets.streetsAround(ad.pin(), 0.06);
                     String key = l.streetMatch() + " ";
                     if (around.isEmpty()) {
