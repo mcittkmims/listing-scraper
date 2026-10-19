@@ -13,6 +13,7 @@ import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.ref.CadastreImporter;
+import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefStore;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
@@ -73,6 +74,11 @@ class ScraperConfiguration {
                 "apartment-lens-scraper/1.0 (+https://github.com/mcittkmims/apartment-lens)",
                 Duration.ofSeconds(1), 6, Duration.ofSeconds(180));
         return new CadastreImporter(http, json, store, tx, clock);
+    }
+
+    @Bean
+    OsmImporter osmImporter(JdbcClient jdbc, JdbcTemplate template, RefStore store, TransactionTemplate tx, Clock clock) {
+        return new OsmImporter(jdbc, template, store, tx, clock);
     }
 
     @Bean

@@ -19,7 +19,8 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@code crawl}: one pass over every source, then exit</li>
  *   <li>{@code renormalize}: normalize ads stored by an older normalizer again, then exit;
  *       {@code renormalize --all} does every ad</li>
- *   <li>{@code import-ref cadastre}: load the reference data of streets and addresses, then exit</li>
+ *   <li>{@code import-ref [cadastre] [osm]}: load the reference data of streets and addresses, then exit;
+ *       OpenStreetMap needs its staging tables first (database/osm)</li>
  * </ul>
  */
 @SpringBootApplication
@@ -43,6 +44,7 @@ public class ScraperApplication {
     @Bean
     ApplicationRunner commands(List<ListingSource> sources, CrawlService crawls, RenormalizeService renormalize,
                                DefaultPinReview pinReview, md.apartmentlens.scraper.ref.CadastreImporter cadastre,
+                               md.apartmentlens.scraper.ref.OsmImporter osm,
                                org.springframework.core.env.Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
@@ -56,6 +58,9 @@ public class ScraperApplication {
                     List<String> what = args.getNonOptionArgs().subList(1, args.getNonOptionArgs().size());
                     if (what.isEmpty() || what.contains("cadastre")) {
                         cadastre.run();
+                    }
+                    if (what.isEmpty() || what.contains("osm")) {
+                        osm.run(); // after the cadastre: links its streets to the cadastre's
                     }
                 }
                 default -> {
