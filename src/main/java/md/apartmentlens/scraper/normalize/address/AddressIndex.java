@@ -109,12 +109,27 @@ public final class AddressIndex {
             lon[n] = Float.parseFloat(line.substring(c + 1));
             n++;
         }
-        street = Arrays.copyOf(street, n);
-        number = Arrays.copyOf(number, n);
-        lat = Arrays.copyOf(lat, n);
-        lon = Arrays.copyOf(lon, n);
+        return of(Arrays.copyOf(street, n), Arrays.copyOf(number, n), Arrays.copyOf(lat, n), Arrays.copyOf(lon, n), streets);
+    }
+
+    /**
+     * An index of these points, given with each street's points next to each other and house numbers
+     * already cleaned. The arrays are taken over, not copied.
+     */
+    public static AddressIndex of(int[] street, String[] number, float[] lat, float[] lon, int streets) {
         sortNumbersWithinStreets(street, number, lat, lon);
         return new AddressIndex(street, number, lat, lon, streets);
+    }
+
+    /** One stored point, for writing the gazetteer files. */
+    public interface PointConsumer {
+        void accept(int street, String number, float lat, float lon);
+    }
+
+    public void forEach(PointConsumer consumer) {
+        for (int i = 0; i < street.length; i++) {
+            consumer.accept(street[i], number[i], lat[i], lon[i]);
+        }
     }
 
     /** The file lists each street's points together; within a street they are sorted by the cleaned number. */

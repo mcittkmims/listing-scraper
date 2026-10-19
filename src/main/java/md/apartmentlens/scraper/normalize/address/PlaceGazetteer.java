@@ -74,6 +74,17 @@ public final class PlaceGazetteer {
         }
     }
 
+    public static PlaceGazetteer of(List<Place> places) {
+        return new PlaceGazetteer(places);
+    }
+
+    /** Every place, for writing the gazetteer files. */
+    public List<Place> places() {
+        List<Place> out = new ArrayList<>(allSettlements);
+        districts.values().forEach(list -> list.stream().filter(p -> !out.contains(p)).forEach(out::add));
+        return out;
+    }
+
     public static PlaceGazetteer load() {
         try (InputStream in = PlaceGazetteer.class.getResourceAsStream("/gazetteer/md-places.tsv")) {
             if (in == null) {

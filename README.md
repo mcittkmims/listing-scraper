@@ -27,7 +27,7 @@ Every four hours the service reads every ad of each source. It stores new ads, k
 | Location | The seller's pin, or the street and house number | A map point and how precise it is: building, street, district or locality |
 | Phone | "069 123 456", "+373 69123456" | A keyed hash of `+37369123456` |
 
-Streets are recognized with Moldovan street names in Romanian and Russian and about a million house numbers with coordinates, built from OpenStreetMap (`tools/build_gazetteer.py`). The seller's pin decides between similar streets, and an ad without a usable pin is placed on the building of its address. Pins that 999.md fills in by default, shared by many ads on different streets, are not used as locations. When no rule can read a value, the field stays empty and the raw value is recorded with the reason instead of guessed. Every odd value found in practice becomes a unit test.
+Streets and house numbers come from the cadastre's official register (35,000 streets, 855,000 addresses, the boundaries of every commune), with Russian and old names from OpenStreetMap. They are loaded into the database with `import-ref`, and `export-gazetteer` writes them to the files bundled for tests. The seller's pin decides between similar streets, and an ad without a usable pin is placed on the building of its address. Pins that 999.md fills in by default, shared by many ads on different streets, are not used as locations. When no rule can read a value, the field stays empty and the raw value is recorded with the reason instead of guessed. Every odd value found in practice becomes a unit test.
 
 ## Running
 
@@ -37,4 +37,4 @@ The service runs from the main repository with `docker compose up -d`. It can al
 
 Writes the `ingest` schema ([schemas](https://github.com/mcittkmims/apartment-lens/blob/main/database/README.md)); it never decides which ads belong together. Built with Java 25, Spring Boot, `java.net.http` and Jackson. It crawls slowly, one request at a time, and identifies itself in every request.
 
-Street data © OpenStreetMap contributors, available under the Open Database License.
+Street data: Cadastre of the Republic of Moldova (geodata.gov.md); © OpenStreetMap contributors, available under the Open Database License.

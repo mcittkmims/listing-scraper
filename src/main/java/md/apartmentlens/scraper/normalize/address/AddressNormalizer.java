@@ -44,10 +44,15 @@ public final class AddressNormalizer {
         }
     }
 
-    /** Words that name an area, not a street: "Cartierul Cluj", "Satul German", "ЖК Grand Park". */
+    /**
+     * Words that name an area, not a street: "Cartierul Cluj", "Satul German", "ЖК Grand Park", garden
+     * associations ("IP Fintinilor", "Cooperativa Botna") and "centru".
+     */
     private static final Pattern AREA = Pattern.compile(
             "^(cartier(ul)?|complex(ul)?( locativ| rezidential)?|satul|sat|zona|microraion(ul)?|ansamblu(l)?( rezidential)?"
-                    + "|жк|жилой комплекс|микрорайон|квартал|коттеджный городок|residence|residential)( |$)");
+                    + "|ip|intovarasirea( pomicola)?|cooperativa|asociatia|centru"
+                    + "|жк|жилой комплекс|микрорайон|квартал|коттеджный городок|садовое товарищество|снт|с т|residence|residential)"
+                    + "( |$)");
 
     private final StreetGazetteer streets;
     private final PlaceGazetteer places;
@@ -269,9 +274,15 @@ public final class AddressNormalizer {
         }
         StreetTypes.Split split = StreetTypes.split(street);
         if (split.type() == null && split.name() != null && locality != null
-                && places.district(split.name(), locality).isPresent()
                 && resolve(split.name(), null, locality, null).isEmpty()) {
-            return street;
+            if (places.district(split.name(), locality).isPresent()) {
+                return street;
+            }
+            // Another village nearby written where the street belongs ("Holercani" for an ad in Ustia).
+            Optional<Place> other = places.settlement(split.name(), null, locality.point());
+            if (other.isPresent() && !other.get().equals(locality) && other.get().point().kmTo(locality.point()) < 15) {
+                return street;
+            }
         }
         return null;
     }

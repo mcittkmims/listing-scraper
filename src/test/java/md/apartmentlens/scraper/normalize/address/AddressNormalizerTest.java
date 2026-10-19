@@ -126,13 +126,12 @@ class AddressNormalizerTest {
     }
 
     @Test
-    void thePinChoosesBetweenStreetsWithTheSameRussianName() {
-        // "Буковина" is the Russian name of both Strada Bucovina and Strada Bucovinei in Chișinău;
-        // these real 999.md pins stand on Strada Bucovina, in Ciocana.
+    void russianNameOfABucovinaStreet() {
+        // These real 999.md pins stand on Strada Bucovina, in Ciocana.
         assertThat(pinned("ул. Буковина", "5", 47.06907, 28.891363).streetName()).isEqualTo("Bucovina");
         assertThat(pinned("ул. Буковина", "2", 47.067783, 28.883339).streetName()).isEqualTo("Bucovina");
-        // Without a pin nothing tells them apart: not guessed.
-        assertThat(chisinau("ул. Буковина", "5").streetMatch()).isEqualTo("unresolved");
+        // The cadastre has one such street in Chișinău itself, so a pin is not needed.
+        assertThat(chisinau("ул. Буковина", "5").streetName()).isEqualTo("Bucovina");
     }
 
     @Test
@@ -211,8 +210,13 @@ class AddressNormalizerTest {
         var pinnedArea = pinned("Complexul locativ Ciocana Nouă", "5", 47.06907, 28.891363);
         assertThat(pinnedArea.areaName()).isNotNull();
         assertThat(pinnedArea.streetMatch()).isEqualTo("from_pin");
-        // A real street is not an area.
+        assertThat(chisinau("IP Fintinilor", "3").areaName()).isEqualTo("IP Fintinilor");
+        assertThat(chisinau("Cooperativa \"Botna\"", "3").areaName()).isEqualTo("Cooperativa \"Botna\"");
+        Place ustia = places.settlement("Ustia", "Dubăsari", null).orElseThrow();
+        assertThat(addresses.normalize("Holercani", ".", ustia, null, new Issues()).areaName()).isEqualTo("Holercani");
+        // A real street is not an area, not even one named after a village.
         assertThat(chisinau("str. Ismail", "1").areaName()).isNull();
+        assertThat(chisinau("str. Ialoveni", "1").areaName()).isNull();
     }
 
     @Test

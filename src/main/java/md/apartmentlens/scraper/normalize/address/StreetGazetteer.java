@@ -44,10 +44,14 @@ public final class StreetGazetteer {
     static final double SAME_STREET_KM = 1.5;
     private static final double CELL_DEG = 0.05;
 
-    /** @param city the town most of the street's buildings name in their address, or empty when unknown */
+    /**
+     * @param city the locality the street belongs to, or empty when unknown
+     * @param line the street's line, as parts of lat, lon pairs; empty when unknown
+     * @param aliasNames other names of the street, as written (their folded forms are in aliasKeys)
+     */
     public record Street(String type, String nameRo, String nameRu, GeoPoint point, double extentKm,
                          String keyRo, String keyRu, Set<String> aliasKeys, String translitRu, int index,
-                         String city) {
+                         String city, float[][] line, List<String> aliasNames) {
 
         /** The name to show: Romanian, or Russian where the map has no Romanian name. */
         public String name() {
@@ -133,17 +137,17 @@ public final class StreetGazetteer {
             String[] f = line.split("\t", -1);
             list.add(street(f[0], f[1], f[2], f[3].isEmpty() ? List.of() : Arrays.asList(f[3].split("\\|")),
                     new GeoPoint(Double.parseDouble(f[4]), Double.parseDouble(f[5])), Double.parseDouble(f[6]),
-                    list.size(), f.length > 8 ? f[8] : ""));
+                    list.size(), f.length > 8 ? f[8] : "", f.length > 9 ? Polyline.decode(f[9]) : new float[0][]));
         }
         return list;
     }
 
-    static Street street(String type, String nameRo, String nameRu, List<String> aliases, GeoPoint point, double extentKm,
-                         int index, String city) {
+    public static Street street(String type, String nameRo, String nameRu, List<String> aliases, GeoPoint point,
+                                double extentKm, int index, String city, float[][] line) {
         Set<String> aliasKeys = aliases.stream().map(Text::fold).filter(k -> !k.isEmpty())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         return new Street(type, nameRo, nameRu, point, extentKm, Text.fold(nameRo), Text.fold(nameRu), aliasKeys,
-                nameRu.isEmpty() ? "" : Text.cyrillicToLatinKey(nameRu), index, city);
+                nameRu.isEmpty() ? "" : Text.cyrillicToLatinKey(nameRu), index, city, line, List.copyOf(aliases));
     }
 
     public int size() {
@@ -164,10 +168,26 @@ public final class StreetGazetteer {
         return addresses.streetsAround(point, radiusKm).stream().map(streets::get).toList();
     }
 
-    /** Distance from a point to a street: to its nearest building, or to its line's extent when it has none. */
+    /** Distance from a point to a street: to its line or nearest building, else to its centre minus its length. */
     public double distanceKm(Street s, GeoPoint p) {
         double d = addresses.distanceKm(s.index(), p);
+        if (s.line().length > 0) {
+            d = Math.min(d, Polyline.distanceKm(s.line(), p.lat(), p.lon()));
+        }
         return Double.isInfinite(d) ? Math.max(0, s.point().kmTo(p) - s.extentKm()) : d;
+    }
+
+    public static StreetGazetteer of(List<Street> streets, AddressIndex addresses) {
+        return new StreetGazetteer(streets, addresses);
+    }
+
+    /** Every street, in index order; for writing the gazetteer files. */
+    public List<Street> streets() {
+        return streets;
+    }
+
+    public AddressIndex addressIndex() {
+        return addresses;
     }
 
     /**

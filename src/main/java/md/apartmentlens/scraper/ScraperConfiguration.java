@@ -15,6 +15,7 @@ import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.ref.CadastreImporter;
 import md.apartmentlens.scraper.ref.MapMdImporter;
 import md.apartmentlens.scraper.ref.OsmImporter;
+import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.ref.RefStore;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
@@ -107,8 +108,28 @@ class ScraperConfiguration {
     }
 
     @Bean
-    ListingNormalizer listingNormalizer(ExchangeRateService rates, DefaultPinRegistry defaultPins, ScraperProperties p) {
-        return new ListingNormalizer(new PriceNormalizer(rates), PlaceGazetteer.load(), StreetGazetteer.load(),
+    RefGazetteer refGazetteer(JdbcTemplate template) {
+        return new RefGazetteer(template);
+    }
+
+    /**
+     * Streets and places from the ref tables once the cadastre is imported; until then the files bundled
+     * with the scraper (exported from the same tables).
+     */
+    @Bean
+    RefGazetteer.Loaded gazetteer(RefGazetteer ref) {
+        if (ref.available()) {
+            return ref.load();
+        }
+        org.slf4j.LoggerFactory.getLogger(ScraperConfiguration.class)
+                .warn("ref tables are empty; using the bundled gazetteer files (run import-ref to load them)");
+        return new RefGazetteer.Loaded(StreetGazetteer.load(), PlaceGazetteer.load());
+    }
+
+    @Bean
+    ListingNormalizer listingNormalizer(ExchangeRateService rates, DefaultPinRegistry defaultPins,
+                                        RefGazetteer.Loaded gazetteer, ScraperProperties p) {
+        return new ListingNormalizer(new PriceNormalizer(rates), gazetteer.places(), gazetteer.streets(),
                 new PhoneNormalizer(p.phoneHashKey()), defaultPins);
     }
 

@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Bean;
  *       {@code renormalize --all} does every ad</li>
  *   <li>{@code import-ref [cadastre] [osm] [mapmd]}: load the reference data of streets and addresses, then
  *       exit; OpenStreetMap needs its staging tables first (database/osm), map.md is read only when named</li>
+ *   <li>{@code export-gazetteer DIR}: write the ref tables as the bundled gazetteer files</li>
  * </ul>
  */
 @SpringBootApplication
@@ -28,7 +29,7 @@ public class ScraperApplication {
 
     public static void main(String[] args) {
         String command = Arrays.stream(args).filter(a -> !a.startsWith("--")).findFirst().orElse("daemon");
-        if (!List.of("daemon", "crawl", "renormalize", "import-ref").contains(command)) {
+        if (!List.of("daemon", "crawl", "renormalize", "import-ref", "export-gazetteer").contains(command)) {
             System.err.println("unknown command '" + command
                     + "'; use crawl, renormalize [--all], import-ref [cadastre] [osm] [mapmd], or no command");
             System.exit(2);
@@ -46,6 +47,7 @@ public class ScraperApplication {
                                DefaultPinReview pinReview, md.apartmentlens.scraper.ref.CadastreImporter cadastre,
                                md.apartmentlens.scraper.ref.OsmImporter osm,
                                md.apartmentlens.scraper.ref.MapMdImporter mapmd,
+                               md.apartmentlens.scraper.ref.RefGazetteer refGazetteer,
                                org.springframework.core.env.Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
@@ -66,6 +68,11 @@ public class ScraperApplication {
                     if (what.contains("mapmd")) {
                         mapmd.run(); // only when asked for: map.md publishes no licence
                     }
+                }
+                case "export-gazetteer" -> {
+                    List<String> rest = args.getNonOptionArgs();
+                    java.nio.file.Path dir = java.nio.file.Path.of(rest.size() > 1 ? rest.get(1) : "gazetteer");
+                    md.apartmentlens.scraper.ref.RefGazetteer.export(refGazetteer.load(), dir);
                 }
                 default -> {
                     // daemon: CrawlScheduler does the work
