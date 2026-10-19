@@ -19,8 +19,8 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@code crawl}: one pass over every source, then exit</li>
  *   <li>{@code renormalize}: normalize ads stored by an older normalizer again, then exit;
  *       {@code renormalize --all} does every ad</li>
- *   <li>{@code import-ref [cadastre] [osm]}: load the reference data of streets and addresses, then exit;
- *       OpenStreetMap needs its staging tables first (database/osm)</li>
+ *   <li>{@code import-ref [cadastre] [osm] [mapmd]}: load the reference data of streets and addresses, then
+ *       exit; OpenStreetMap needs its staging tables first (database/osm), map.md is read only when named</li>
  * </ul>
  */
 @SpringBootApplication
@@ -30,7 +30,7 @@ public class ScraperApplication {
         String command = Arrays.stream(args).filter(a -> !a.startsWith("--")).findFirst().orElse("daemon");
         if (!List.of("daemon", "crawl", "renormalize", "import-ref").contains(command)) {
             System.err.println("unknown command '" + command
-                    + "'; use crawl, renormalize [--all], import-ref cadastre, or no command");
+                    + "'; use crawl, renormalize [--all], import-ref [cadastre] [osm] [mapmd], or no command");
             System.exit(2);
         }
         SpringApplication app = new SpringApplication(ScraperApplication.class);
@@ -45,6 +45,7 @@ public class ScraperApplication {
     ApplicationRunner commands(List<ListingSource> sources, CrawlService crawls, RenormalizeService renormalize,
                                DefaultPinReview pinReview, md.apartmentlens.scraper.ref.CadastreImporter cadastre,
                                md.apartmentlens.scraper.ref.OsmImporter osm,
+                               md.apartmentlens.scraper.ref.MapMdImporter mapmd,
                                org.springframework.core.env.Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
@@ -61,6 +62,9 @@ public class ScraperApplication {
                     }
                     if (what.isEmpty() || what.contains("osm")) {
                         osm.run(); // after the cadastre: links its streets to the cadastre's
+                    }
+                    if (what.contains("mapmd")) {
+                        mapmd.run(); // only when asked for: map.md publishes no licence
                     }
                 }
                 default -> {

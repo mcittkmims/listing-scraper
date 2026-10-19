@@ -13,6 +13,7 @@ import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.ref.CadastreImporter;
+import md.apartmentlens.scraper.ref.MapMdImporter;
 import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefStore;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
@@ -79,6 +80,13 @@ class ScraperConfiguration {
     @Bean
     OsmImporter osmImporter(JdbcClient jdbc, JdbcTemplate template, RefStore store, TransactionTemplate tx, Clock clock) {
         return new OsmImporter(jdbc, template, store, tx, clock);
+    }
+
+    @Bean
+    MapMdImporter mapMdImporter(JsonMapper json, RefStore store, JdbcClient jdbc, TransactionTemplate tx, Clock clock,
+                                ScraperProperties p) {
+        PoliteHttpClient http = new PoliteHttpClient(p.userAgent(), p.requestInterval(), 6, Duration.ofSeconds(60));
+        return new MapMdImporter(http, json, store, jdbc, tx, clock);
     }
 
     @Bean
