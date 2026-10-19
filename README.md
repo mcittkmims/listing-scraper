@@ -24,10 +24,10 @@ Every four hours the service reads every ad of each source. It stores new ads, k
 | Floor | "7" of "9", "3/9", "Demisol", "Mansardă" | Floor 7 of 9; semi-basement 0, attic and penthouse marked |
 | Street | "ул. Каля Ешилор", "str. Calea Iesilor", "M.Sadoveanu" | The official name: Calea Ieșilor, Mihail Sadoveanu |
 | House number | "57/a", "9 a", "1\8", "-", "***" | "57/A", "9A", "1/8", or empty when hidden |
-| Location | The seller's pin, or the street or locality | A map point and how precise it is: building, street, district or locality |
+| Location | The seller's pin, or the street and house number | A map point and how precise it is: building, street, district or locality |
 | Phone | "069 123 456", "+373 69123456" | A keyed hash of `+37369123456` |
 
-Streets are recognized with a list of Moldovan street names in Romanian and Russian built from OpenStreetMap (`tools/build_gazetteer.py`), looking only near the ad. When no rule can read a value, the field stays empty and the raw value is recorded with the reason instead of guessed. Every odd value found in practice becomes a unit test.
+Streets are recognized with Moldovan street names in Romanian and Russian and about a million house numbers with coordinates, built from OpenStreetMap (`tools/build_gazetteer.py`). The seller's pin decides between similar streets, and an ad without a usable pin is placed on the building of its address. Pins that 999.md fills in by default, shared by many ads on different streets, are not used as locations. When no rule can read a value, the field stays empty and the raw value is recorded with the reason instead of guessed. Every odd value found in practice becomes a unit test.
 
 ## Running
 
