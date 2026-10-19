@@ -1,0 +1,337 @@
+package md.apartmentlens.scraper.crawl;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
+import javax.sql.DataSource;
+import md.apartmentlens.scraper.Fixtures;
+import md.apartmentlens.scraper.normalize.ListingNormalizer;
+import md.apartmentlens.scraper.normalize.PhoneNormalizer;
+import md.apartmentlens.scraper.normalize.PriceNormalizer;
+import md.apartmentlens.scraper.normalize.address.AddressNormalizer;
+import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
+import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
+import md.apartmentlens.scraper.rates.BnmRateClient;
+import md.apartmentlens.scraper.rates.ExchangeRateService;
+import md.apartmentlens.scraper.source.ListingSource;
+import md.apartmentlens.scraper.source.RawAd;
+import md.apartmentlens.scraper.source.SourceAd;
+import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
+import md.apartmentlens.scraper.store.CrawlRunRepository;
+import md.apartmentlens.scraper.store.ExchangeRateRepository;
+import md.apartmentlens.scraper.store.ListingRepository;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.images.builder.ImageFromDockerfile;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
+
+/**
+ * Crawls against the real database image and migrations, connected as the scraper role (so the
+ * role's permissions are tested too). The source is a fake that serves synthetic ads.
+ */
+class CrawlServiceIT {
+
+    static PostgreSQLContainer db;
+    static DataSource scraper;
+    static JdbcClient admin;
+
+    @BeforeAll
+    static void startDatabase() {
+        Path databaseDir = Path.of(System.getProperty("migrations.dir")).getParent();
+        String image = new ImageFromDockerfile("apartment-lens/postgres-test", false)
+                .withFileFromPath(".", databaseDir).get();
+        db = new PostgreSQLContainer(DockerImageName.parse(image).asCompatibleSubstituteFor("postgres"));
+        db.start();
+        Flyway.configure()
+                .dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
+                .locations("filesystem:" + System.getProperty("migrations.dir"))
+                .placeholders(Map.of("scraper_password", "scraper-test"))
+                .load().migrate();
+        admin = JdbcClient.create(new DriverManagerDataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword()));
+        scraper = new DriverManagerDataSource(db.getJdbcUrl(), "scraper", "scraper-test");
+    }
+
+    @AfterAll
+    static void stopDatabase() {
+        if (db != null) {
+            db.stop();
+        }
+    }
+
+    final FakeSource source = new FakeSource();
+    final MutableClock clock = new MutableClock(Instant.parse("2026-10-19T08:00:00Z"));
+    CrawlService crawls;
+    RenormalizeService renormalize;
+
+    @BeforeEach
+    void setUp() {
+        admin.sql("truncate ingest.listing, ingest.crawl_run, ingest.exchange_rate restart identity cascade").update();
+        JdbcClient jdbc = JdbcClient.create(scraper);
+        TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(scraper));
+        ExchangeRateService rates = new ExchangeRateService(new ExchangeRateRepository(jdbc), new BnmRateClient(null) {
+            @Override
+            public Map<String, BigDecimal> rates(LocalDate date) {
+                return new java.util.HashMap<>(Map.of("EUR", new BigDecimal("20.0000"), "USD", new BigDecimal("18.0000")));
+            }
+        });
+        ListingNormalizer normalizer = new ListingNormalizer(new PriceNormalizer(rates), PlaceGazetteer.load(),
+                new AddressNormalizer(StreetGazetteer.load()), new PhoneNormalizer("test-key-0123456789abcdef"));
+        CrawlRunRepository runs = new CrawlRunRepository(jdbc);
+        ListingRepository listings = new ListingRepository(jdbc, Fixtures.JSON);
+        crawls = new CrawlService(runs, listings, normalizer, rates, tx, clock, () -> 0,
+                new CrawlService.Safety(Duration.ofHours(12), 0.5, 1.0));
+        renormalize = new RenormalizeService(runs, listings, normalizer, rates, tx);
+    }
+
+    @Test
+    void newAdsAreStoredWithRawContentAndAFirstSnapshot() {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        source.put(Fixtures.ninetyNine("house.json"));
+
+        CrawlStats stats = crawls.crawl(source).orElseThrow();
+
+        assertThat(stats.seen()).isEqualTo(2);
+        assertThat(stats.added()).isEqualTo(2);
+        assertThat(stats.errors()).isZero();
+        Map<String, Object> flat = admin.sql("""
+                        select property_type, street_name, house_number, price_eur, area_total_m2, location_precision,
+                               st_y(geom::geometry) as lat, cardinality(phone_hashes) as phones, status
+                        from ingest.listing where external_id = '100000001'
+                        """).query().singleRow();
+        assertThat(flat).containsEntry("property_type", "apartment").containsEntry("street_name", "Ceucari")
+                .containsEntry("house_number", "1").containsEntry("location_precision", "building")
+                .containsEntry("phones", 1).containsEntry("status", "active");
+        assertThat((BigDecimal) flat.get("price_eur")).isEqualByComparingTo("99990");
+        assertThat((BigDecimal) flat.get("area_total_m2")).isEqualByComparingTo("66.38");
+        assertThat((Double) flat.get("lat")).isEqualTo(47.06786);
+        assertThat(count("ingest.listing_raw")).isEqualTo(2);
+        assertThat(count("ingest.listing_snapshot")).isEqualTo(2);
+        assertThat(admin.sql("select status from ingest.crawl_run").query(String.class).single()).isEqualTo("completed");
+        assertThat(count("ingest.exchange_rate")).isEqualTo(2);
+    }
+
+    @Test
+    void unchangedAdsOnlyUpdateLastSeen_bumpsAreNotChanges() {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        crawls.crawl(source);
+        clock.advance(Duration.ofHours(4));
+        source.replace("100000001", "\"reseted\": \"2026-10-19T14:56:53Z\"", "\"reseted\": \"2026-10-19T20:00:00Z\"");
+
+        CrawlStats stats = crawls.crawl(source).orElseThrow();
+
+        assertThat(stats.changed()).isZero();
+        assertThat(count("ingest.listing_raw")).isEqualTo(1);
+        assertThat(count("ingest.listing_snapshot")).isEqualTo(1);
+        assertThat(admin.sql("select republished_at from ingest.listing").query(java.sql.Timestamp.class).single()
+                .toInstant()).isEqualTo(Instant.parse("2026-10-19T20:00:00Z"));
+        assertThat(admin.sql("select last_seen_at from ingest.listing").query(java.sql.Timestamp.class).single()
+                .toInstant()).isEqualTo(clock.instant());
+    }
+
+    @Test
+    void aPriceChangeAddsASnapshot() {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        crawls.crawl(source);
+        clock.advance(Duration.ofHours(4));
+        source.replace("100000001", "\"value\": 99990", "\"value\": 95000");
+
+        CrawlStats stats = crawls.crawl(source).orElseThrow();
+
+        assertThat(stats.changed()).isEqualTo(1);
+        assertThat(stats.priceChanges()).isEqualTo(1);
+        assertThat(admin.sql("select price_amount from ingest.listing_snapshot order by captured_at")
+                .query(BigDecimal.class).list()).extracting(BigDecimal::intValue).containsExactly(99990, 95000);
+        assertThat(count("ingest.listing_raw")).isEqualTo(2);
+    }
+
+    @Test
+    void adsThatDisappearAreCheckedThenMarkedGone_andCanComeBack() {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        source.put(Fixtures.ninetyNine("house.json"));
+        crawls.crawl(source);
+        clock.advance(Duration.ofHours(4));
+
+        // Missing from the listing but still online: fetched again, stays active.
+        source.hideFromListing("100000002");
+        CrawlStats missed = crawls.crawl(source).orElseThrow();
+        assertThat(missed.gone()).isZero();
+        assertThat(status("100000002")).isEqualTo("active");
+
+        // Removed from the site: gone, with a snapshot.
+        clock.advance(Duration.ofHours(4));
+        source.remove("100000002");
+        CrawlStats removed = crawls.crawl(source).orElseThrow();
+        assertThat(removed.gone()).isEqualTo(1);
+        assertThat(status("100000002")).isEqualTo("gone");
+        assertThat(admin.sql("""
+                        select s.status from ingest.listing_snapshot s join ingest.listing l on l.id = s.listing_id
+                        where l.external_id = '100000002' order by s.captured_at desc limit 1
+                        """).query(String.class).single()).isEqualTo("gone");
+
+        // Listed again later.
+        clock.advance(Duration.ofHours(4));
+        source.put(Fixtures.ninetyNine("house.json"));
+        crawls.crawl(source);
+        assertThat(status("100000002")).isEqualTo("active");
+        assertThat(admin.sql("select gone_at from ingest.listing where external_id = '100000002'")
+                .query(java.sql.Timestamp.class).optional()).isEmpty();
+    }
+
+    @Test
+    void aShortPassMarksNothingGone() {
+        for (int i = 0; i < 10; i++) {
+            source.put(copy("apartment.json", "10000010" + i));
+        }
+        crawls.crawl(source);
+        clock.advance(Duration.ofHours(4));
+        for (int i = 0; i < 8; i++) {
+            source.remove("10000010" + i); // 2 of 10 seen: below the 50 % this test allows
+        }
+
+        crawls.crawl(source);
+
+        assertThat(admin.sql("select count(*) from ingest.listing where status = 'gone'").query(Integer.class).single()).isZero();
+        assertThat(admin.sql("select status from ingest.crawl_run order by id desc limit 1").query(String.class).single())
+                .isEqualTo("partial");
+    }
+
+    @Test
+    void renormalizeUsesTheStoredRawContent() {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        crawls.crawl(source);
+        admin.sql("update ingest.listing set street_name = 'wrong', normalizer_version = 0").update();
+
+        int done = renormalize.renormalize(source, false);
+
+        assertThat(done).isEqualTo(1);
+        assertThat(admin.sql("select street_name from ingest.listing").query(String.class).single()).isEqualTo("Ceucari");
+        assertThat(admin.sql("select normalizer_version from ingest.listing").query(Integer.class).single())
+                .isEqualTo(ListingNormalizer.VERSION);
+        assertThat(count("ingest.listing_snapshot")).isEqualTo(1);
+    }
+
+    @Test
+    void onlyOneRunPerSourceAtATime() {
+        admin.sql("insert into ingest.crawl_run (source_id) values (1)").update();
+        assertThat(crawls.crawl(source)).isEmpty();
+    }
+
+    static RawAd copy(String fixture, String id) {
+        RawAd raw = Fixtures.ninetyNine(fixture);
+        String body = new String(raw.body(), StandardCharsets.UTF_8).replaceFirst("\"id\": \"\\d+\"", "\"id\": \"" + id + "\"");
+        return new RawAd(id, body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    String status(String externalId) {
+        return admin.sql("select status from ingest.listing where external_id = ?").param(externalId)
+                .query(String.class).single();
+    }
+
+    int count(String table) {
+        return admin.sql("select count(*) from " + table).query(Integer.class).single();
+    }
+
+    /** A 999.md-shaped source served from memory. */
+    static final class FakeSource implements ListingSource {
+
+        private final NineNineSource parser = new NineNineSource(null, Fixtures.JSON, 0);
+        private final Map<String, RawAd> online = new LinkedHashMap<>();
+        private final List<String> hidden = new ArrayList<>();
+
+        void put(RawAd ad) {
+            online.put(ad.externalId(), ad);
+            hidden.remove(ad.externalId());
+        }
+
+        void remove(String id) {
+            online.remove(id);
+            hidden.remove(id);
+        }
+
+        void hideFromListing(String id) {
+            hidden.add(id);
+        }
+
+        void replace(String id, String from, String to) {
+            RawAd ad = online.get(id);
+            String body = new String(ad.body(), StandardCharsets.UTF_8);
+            assertThat(body).contains(from);
+            online.put(id, new RawAd(id, body.replace(from, to).getBytes(StandardCharsets.UTF_8)));
+        }
+
+        @Override
+        public String code() {
+            return "999md";
+        }
+
+        @Override
+        public int crawl(Consumer<RawAd> sink) {
+            online.values().stream().filter(a -> !hidden.contains(a.externalId())).forEach(sink);
+            return online.size();
+        }
+
+        @Override
+        public Optional<RawAd> fetch(String externalId) {
+            return Optional.ofNullable(online.get(externalId));
+        }
+
+        @Override
+        public SourceAd parse(RawAd raw) {
+            return parser.parse(raw);
+        }
+
+        @Override
+        public byte[] stableContent(RawAd raw) {
+            return parser.stableContent(raw);
+        }
+    }
+
+    static final class MutableClock extends Clock {
+
+        private Instant now;
+
+        MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration d) {
+            now = now.plus(d);
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return Clock.fixed(now, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+}

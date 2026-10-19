@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: listing-scraper
+  main:
+    web-application-type: none
+    banner-mode: off
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lens}
+    username: ${SPRING_DATASOURCE_USERNAME:scraper}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    hikari:
+      maximum-pool-size: 4
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+scraper:
+  phone-hash-key: ${SCRAPER_PHONE_HASH_KEY:}
+
+logging:
+  level:
+    root: info
+    md.apartmentlens: info
