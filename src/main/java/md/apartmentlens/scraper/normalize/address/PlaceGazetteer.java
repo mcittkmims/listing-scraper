@@ -1,0 +1,188 @@
+package md.apartmentlens.scraper.normalize.address;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
+import md.apartmentlens.scraper.source.GeoPoint;
+import md.apartmentlens.scraper.text.Text;
+
+/**
+ * Settlements and city districts of Moldova, from OpenStreetMap (see tools/build_gazetteer.py).
+ * Used to find where an ad's locality is, so streets are looked up only nearby.
+ */
+public final class PlaceGazetteer {
+
+    private static final Pattern REGION_WORDS = Pattern.compile(
+            "\\b(mun|municipiul|r nul|raionul|raion|or|orasul|s|satul|com|comuna|uta|р н|район|мун|г)\\b");
+
+    public record Place(String nameRo, String nameRu, String type, GeoPoint point, int population) {
+
+        public boolean isSettlement() {
+            return switch (type) {
+                case "city", "town", "village", "hamlet" -> true;
+                default -> false;
+            };
+        }
+
+        /** How far from the place's centre its streets can be. */
+        public double radiusKm() {
+            return switch (type) {
+                case "city" -> population > 300_000 ? 14 : 8;
+                case "town" -> 5;
+                case "village" -> 3.5;
+                case "hamlet" -> 2;
+                default -> 2.5; // districts
+            };
+        }
+
+        int rank() {
+            return switch (type) {
+                case "city" -> 0;
+                case "town" -> 1;
+                case "village" -> 2;
+                case "hamlet" -> 3;
+                default -> 4;
+            };
+        }
+    }
+
+    private final Map<String, List<Place>> settlements = new HashMap<>();
+    private final Map<String, List<Place>> districts = new HashMap<>();
+
+    PlaceGazetteer(List<Place> places) {
+        for (Place p : places) {
+            Map<String, List<Place>> index = p.isSettlement() ? settlements : districts;
+            for (String name : new String[] {p.nameRo(), p.nameRu()}) {
+                if (name != null && !name.isEmpty()) {
+                    index.computeIfAbsent(Text.fold(name), k -> new ArrayList<>()).add(p);
+                }
+            }
+        }
+    }
+
+    public static PlaceGazetteer load() {
+        try (InputStream in = PlaceGazetteer.class.getResourceAsStream("/gazetteer/md-places.tsv")) {
+            if (in == null) {
+                throw new IllegalStateException("gazetteer/md-places.tsv is missing from the classpath");
+            }
+            return new PlaceGazetteer(parse(in));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    static List<Place> parse(InputStream in) throws IOException {
+        List<Place> places = new ArrayList<>();
+        BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        String line;
+        boolean header = true;
+        while ((line = r.readLine()) != null) {
+            if (line.startsWith("#")) {
+                continue;
+            }
+            if (header) {
+                header = false;
+                continue;
+            }
+            String[] f = line.split("\t", -1);
+            int population = f[5].isEmpty() ? 0 : Integer.parseInt(f[5]);
+            places.add(new Place(f[0], f[1], f[2],
+                    new GeoPoint(Double.parseDouble(f[3]), Double.parseDouble(f[4])), population));
+        }
+        return places;
+    }
+
+    /**
+     * Removes administrative words and notes: "Chișinău mun." -> "Chișinău", "r-nul Ialoveni" -> "Ialoveni",
+     * "Ghindești (sat)" -> "Ghindești", "Catranîc, loc.st.c.f." -> "Catranîc".
+     */
+    static String placeKey(String label) {
+        String s = label.replaceAll("\\(.*?\\)", " ");
+        int comma = s.indexOf(',');
+        if (comma > 0) {
+            s = s.substring(0, comma);
+        }
+        return REGION_WORDS.matcher(Text.fold(s)).replaceAll(" ").strip().replaceAll("\\s+", " ");
+    }
+
+    /** A settlement spelled slightly differently ("Dnestrovsk" for Dnestrovsc), when one name is clearly closest. */
+    private List<Place> similarSettlements(String key) {
+        if (key.length() < 5) {
+            return List.of();
+        }
+        String best = null;
+        double bestScore = 0;
+        double second = 0;
+        for (String name : settlements.keySet()) {
+            double sc = Text.similarity(key, name);
+            if (sc > bestScore) {
+                second = bestScore;
+                bestScore = sc;
+                best = name;
+            } else if (sc > second) {
+                second = sc;
+            }
+        }
+        return best != null && bestScore >= 0.88 && second < bestScore - 0.05 ? settlements.get(best) : List.of();
+    }
+
+    /**
+     * The settlement an ad is in. Several villages share a name, so the one nearest to the seller's pin,
+     * or else to the seat of the ad's region, is chosen.
+     */
+    public Optional<Place> settlement(String localityLabel, String regionLabel, GeoPoint pin) {
+        if (localityLabel == null) {
+            return Optional.empty();
+        }
+        List<Place> candidates = settlements.getOrDefault(placeKey(localityLabel), List.of());
+        if (candidates.isEmpty() && localityLabel.contains("/")) {
+            // Two names for one town: "Bender/Tighina".
+            for (String part : localityLabel.split("/")) {
+                candidates = settlements.getOrDefault(placeKey(part), List.of());
+                if (!candidates.isEmpty()) {
+                    break;
+                }
+            }
+        }
+        if (candidates.isEmpty()) {
+            candidates = similarSettlements(placeKey(localityLabel));
+        }
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        if (candidates.size() == 1) {
+            return Optional.of(candidates.getFirst());
+        }
+        GeoPoint near = pin;
+        if (near == null && regionLabel != null) {
+            near = settlements.getOrDefault(placeKey(regionLabel), List.of()).stream()
+                    .min(Comparator.comparingInt(Place::rank).thenComparing(p -> -p.population()))
+                    .map(Place::point).orElse(null);
+        }
+        if (near != null) {
+            GeoPoint from = near;
+            return candidates.stream().min(Comparator.comparingDouble(p -> p.point().kmTo(from)));
+        }
+        return candidates.stream().min(Comparator.comparingInt(Place::rank).thenComparing(p -> -p.population()));
+    }
+
+    /** A city district (sector) or quarter of a settlement, e.g. "Botanica" in Chișinău. */
+    public Optional<Place> district(String districtLabel, Place settlement) {
+        if (districtLabel == null || settlement == null) {
+            return Optional.empty();
+        }
+        return districts.getOrDefault(placeKey(districtLabel), List.of()).stream()
+                .filter(d -> d.point().kmTo(settlement.point()) < settlement.radiusKm() + 3)
+                .min(Comparator.comparingDouble(d -> d.point().kmTo(settlement.point())));
+    }
+}
