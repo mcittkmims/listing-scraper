@@ -12,6 +12,8 @@ import md.apartmentlens.scraper.normalize.PriceNormalizer;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
+import md.apartmentlens.scraper.ref.CadastreImporter;
+import md.apartmentlens.scraper.ref.RefStore;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
@@ -21,6 +23,7 @@ import md.apartmentlens.scraper.store.ListingRepository;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
@@ -57,6 +60,19 @@ class ScraperConfiguration {
                 "apartment-lens-scraper/1.0 (+https://github.com/mcittkmims/apartment-lens)",
                 Duration.ofSeconds(1), 4, Duration.ofSeconds(30));
         return new ExchangeRateService(repository, new BnmRateClient(http));
+    }
+
+    @Bean
+    RefStore refStore(JdbcClient jdbc, JdbcTemplate template) {
+        return new RefStore(jdbc, template);
+    }
+
+    @Bean
+    CadastreImporter cadastreImporter(JsonMapper json, RefStore store, TransactionTemplate tx, Clock clock) {
+        PoliteHttpClient http = new PoliteHttpClient(
+                "apartment-lens-scraper/1.0 (+https://github.com/mcittkmims/apartment-lens)",
+                Duration.ofSeconds(1), 6, Duration.ofSeconds(180));
+        return new CadastreImporter(http, json, store, tx, clock);
     }
 
     @Bean

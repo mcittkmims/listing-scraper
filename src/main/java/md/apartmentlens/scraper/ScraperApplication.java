@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@code crawl}: one pass over every source, then exit</li>
  *   <li>{@code renormalize}: normalize ads stored by an older normalizer again, then exit;
  *       {@code renormalize --all} does every ad</li>
+ *   <li>{@code import-ref cadastre}: load the reference data of streets and addresses, then exit</li>
  * </ul>
  */
 @SpringBootApplication
@@ -26,8 +27,9 @@ public class ScraperApplication {
 
     public static void main(String[] args) {
         String command = Arrays.stream(args).filter(a -> !a.startsWith("--")).findFirst().orElse("daemon");
-        if (!List.of("daemon", "crawl", "renormalize").contains(command)) {
-            System.err.println("unknown command '" + command + "'; use crawl, renormalize [--all], or no command");
+        if (!List.of("daemon", "crawl", "renormalize", "import-ref").contains(command)) {
+            System.err.println("unknown command '" + command
+                    + "'; use crawl, renormalize [--all], import-ref cadastre, or no command");
             System.exit(2);
         }
         SpringApplication app = new SpringApplication(ScraperApplication.class);
@@ -40,7 +42,8 @@ public class ScraperApplication {
 
     @Bean
     ApplicationRunner commands(List<ListingSource> sources, CrawlService crawls, RenormalizeService renormalize,
-                               DefaultPinReview pinReview, org.springframework.core.env.Environment env) {
+                               DefaultPinReview pinReview, md.apartmentlens.scraper.ref.CadastreImporter cadastre,
+                               org.springframework.core.env.Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
             switch (mode) {
@@ -49,6 +52,12 @@ public class ScraperApplication {
                     renormalize.renormalize(s, args.containsOption("all"));
                     pinReview.review(s); // pins are stored by the step above
                 });
+                case "import-ref" -> {
+                    List<String> what = args.getNonOptionArgs().subList(1, args.getNonOptionArgs().size());
+                    if (what.isEmpty() || what.contains("cadastre")) {
+                        cadastre.run();
+                    }
+                }
                 default -> {
                     // daemon: CrawlScheduler does the work
                 }
