@@ -54,11 +54,22 @@ public final class RefGazetteer {
         return n != null && n > 0;
     }
 
+    /** Everything in the tables, for the running scraper. */
     public Loaded load() {
+        return load(true);
+    }
+
+    /**
+     * @param withMapMd false leaves out the map.md names, as for the files committed to the public repository:
+     *                  map.md publishes no licence, so its data is not republished
+     */
+    public Loaded load(boolean withMapMd) {
+        String sources = withMapMd ? "('cadastre', 'osm', 'mapmd')" : "('cadastre', 'osm')";
         long start = System.nanoTime();
         // Names of the same street in other sources, by the cadastre street they belong to.
         Map<Long, List<String[]>> linked = new HashMap<>();
-        jdbc.query("select same_as, source, name_ro, name_ru, aliases from ref.street where same_as is not null", rs -> {
+        jdbc.query("select same_as, source, name_ro, name_ru, aliases from ref.street where same_as is not null"
+                + " and source in " + sources, rs -> {
             String[] aliases = (String[]) rs.getArray(5).getArray();
             String[] row = new String[3 + aliases.length];
             row[0] = rs.getString(2);
@@ -74,9 +85,9 @@ public final class RefGazetteer {
                         select s.id, s.source, s.type, s.name_ro, s.name_ru, s.aliases, coalesce(l.name, ''),
                                st_astext(st_simplify(s.geom::geometry, 0.00003))
                         from ref.street s left join ref.locality l on l.source = 'cadastre' and l.full_name = s.locality
-                        where s.same_as is null and s.geom is not null
+                        where s.same_as is null and s.geom is not null and s.source in %s
                         order by s.id
-                        """, rs -> {
+                        """.formatted(sources), rs -> {
             long id = rs.getLong(1);
             String type = rs.getString(3);
             String nameRo = rs.getString(4);

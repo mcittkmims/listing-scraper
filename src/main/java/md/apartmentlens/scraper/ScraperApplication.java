@@ -72,7 +72,8 @@ public class ScraperApplication {
                 case "export-gazetteer" -> {
                     List<String> rest = args.getNonOptionArgs();
                     java.nio.file.Path dir = java.nio.file.Path.of(rest.size() > 1 ? rest.get(1) : "gazetteer");
-                    md.apartmentlens.scraper.ref.RefGazetteer.export(refGazetteer.load(), dir);
+                    // map.md names stay out of the files (they are committed publicly) unless asked for.
+                    md.apartmentlens.scraper.ref.RefGazetteer.export(refGazetteer.load(args.containsOption("with-mapmd")), dir);
                 }
                 default -> {
                     // daemon: CrawlScheduler does the work
