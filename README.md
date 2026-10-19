@@ -2,32 +2,39 @@
 
 Collects ads for [Apartment Lens](https://github.com/mcittkmims/apartment-lens) from 999.md and real-estate agency websites and turns them into clean, comparable data. It runs as its own process, so a crash or a block never affects the website.
 
-> **Status:** design stage. There is no code yet.
+> **Status:** 999.md (flats, houses and country houses for sale) is collected. Agency websites follow.
 
 ## How it works
 
 ```
-source page → source parser → shared normalizer → database
+source → source parser → shared normalizer → database
 ```
 
-Every few hours, each source's parser extracts the raw values from its ads, and the shared normalizer converts them into the same fields for every source. The service stores the ad, adds a price snapshot when the price or status changed, and downloads photos it has not seen before. Each new photo gets a fingerprint job for the vision worker.
+Every four hours the service reads every ad of each source. It stores new ads, keeps the original content of an ad whenever it changes, and adds a price snapshot when the price or status changes. Ads missing from a pass are checked one by one and marked gone only when they really are; a pass that looks too short marks nothing gone.
 
-999.md has one parser, and each agency website gets its own small one. Before writing an HTML parser, check whether the site loads its data as JSON; that is far more stable to parse.
+999.md is read through the same JSON API its website uses. Each agency website will get its own small parser.
 
 ## Normalization
 
 | Field | Raw examples | Result |
 |---|---|---|
-| Price | "60 000 €", "1 200 000 lei", "60 de mii" | Amount, currency and EUR value at that day's BNM rate |
-| Rooms | "2 camere", "2-комнатная", "garsonieră" | A number |
-| Area | "54 m²", "54 mp", "54 кв.м" | Total area in m² |
-| Floor | "3/9", "etajul 3 din 9", "3 этаж из 9" | Floor 3 of 9 |
-| Address | "str. Mircea cel Bătrân", "ул. Мирча чел Бэтрын" | One spelling, from a Romanian–Russian alias table |
-| Location | Map pin, or address only | A map point, from the pin or the geocoder |
+| Price | "99 990 €", "1 200 000 lei", "60 de mii" | Amount and currency, plus EUR at that day's BNM rate |
+| Rooms | "Apartament cu 2 camere", "2-комнатная", "garsonieră" | A number, and whether a living room is included |
+| Area | "67", "54 mp", "6 ari" | m², taken from the description when it is more precise ("66,38 m²") |
+| Floor | "7" of "9", "3/9", "Demisol", "Mansardă" | Floor 7 of 9; semi-basement 0, attic and penthouse marked |
+| Street | "ул. Каля Ешилор", "str. Calea Iesilor", "M.Sadoveanu" | The official name: Calea Ieșilor, Mihail Sadoveanu |
+| House number | "57/a", "9 a", "1\8", "-", "***" | "57/A", "9A", "1/8", or empty when hidden |
+| Location | The seller's pin, or the street or locality | A map point and how precise it is: building, street, district or locality |
 | Phone | "069 123 456", "+373 69123456" | A keyed hash of `+37369123456` |
 
-When no rule can read a value, the field stays empty and the raw text is logged instead of guessed. Every odd value found in practice becomes a unit test.
+Streets are recognized with a list of Moldovan street names in Romanian and Russian built from OpenStreetMap (`tools/build_gazetteer.py`), looking only near the ad. When no rule can read a value, the field stays empty and the raw value is recorded with the reason instead of guessed. Every odd value found in practice becomes a unit test.
+
+## Running
+
+The service runs from the main repository with `docker compose up -d`. It can also be run once: `crawl` does one pass, and `renormalize` applies new normalization rules to the stored content without crawling. Tests need Docker: `./gradlew test`.
 
 ## Data and technology
 
-Writes `ingest`, photo rows in `media`, and jobs in `ops` ([schemas](https://github.com/mcittkmims/apartment-lens/blob/main/database/README.md)); it never decides which ads belong together. Built with Java 21+, `java.net.http`, jsoup and Jackson, with Playwright for sites that need a real browser and a self-hosted Nominatim geocoder. It crawls slowly and respects each site's terms.
+Writes the `ingest` schema ([schemas](https://github.com/mcittkmims/apartment-lens/blob/main/database/README.md)); it never decides which ads belong together. Built with Java 25, Spring Boot, `java.net.http` and Jackson. It crawls slowly, one request at a time, and identifies itself in every request.
+
+Street data © OpenStreetMap contributors, available under the Open Database License.

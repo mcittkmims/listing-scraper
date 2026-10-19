@@ -237,6 +237,36 @@ class CrawlServiceIT {
         assertThat(crawls.crawl(source)).isEmpty();
     }
 
+    @Test
+    void stoppingTheServiceEndsTheRunSoTheNextCanStart() throws Exception {
+        java.util.concurrent.CountDownLatch firstStored = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch stopRequested = new java.util.concurrent.CountDownLatch(1);
+        FakeSource slow = new FakeSource() {
+            @Override
+            public int crawl(Consumer<RawAd> sink) {
+                sink.accept(copy("apartment.json", "100000201"));
+                firstStored.countDown();
+                try {
+                    stopRequested.await();
+                } catch (InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
+                sink.accept(copy("apartment.json", "100000202"));
+                return 2;
+            }
+        };
+        Thread crawl = Thread.ofVirtual().start(() -> crawls.crawl(slow));
+        firstStored.await();
+        Thread stop = Thread.ofVirtual().start(crawls::close);
+        Thread.sleep(200);
+        stopRequested.countDown();
+        stop.join();
+        crawl.join();
+
+        assertThat(admin.sql("select status from ingest.crawl_run").query(String.class).single()).isEqualTo("partial");
+        assertThat(count("ingest.listing")).isEqualTo(1);
+    }
+
     static RawAd copy(String fixture, String id) {
         RawAd raw = Fixtures.ninetyNine(fixture);
         String body = new String(raw.body(), StandardCharsets.UTF_8).replaceFirst("\"id\": \"\\d+\"", "\"id\": \"" + id + "\"");
@@ -253,7 +283,7 @@ class CrawlServiceIT {
     }
 
     /** A 999.md-shaped source served from memory. */
-    static final class FakeSource implements ListingSource {
+    static class FakeSource implements ListingSource {
 
         private final NineNineSource parser = new NineNineSource(null, Fixtures.JSON, 0);
         private final Map<String, RawAd> online = new LinkedHashMap<>();

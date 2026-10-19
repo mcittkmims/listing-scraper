@@ -13,6 +13,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.NormalizedListing;
@@ -36,7 +40,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>Each ad is handled in its own transaction, so one bad ad never stops a run.
  */
-public class CrawlService {
+public class CrawlService implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(CrawlService.class);
     static final ZoneId MOLDOVA = ZoneId.of("Europe/Chisinau");
@@ -44,7 +48,7 @@ public class CrawlService {
     /** Limits that protect against marking ads gone after a short or broken pass. */
     public record Safety(Duration staleRunAfter, double minSeenShare, double maxGoneShare) {
 
-        public static final Safety DEFAULT = new Safety(Duration.ofHours(12), 0.9, 0.2);
+        public static final Safety DEFAULT = new Safety(Duration.ofHours(2), 0.9, 0.2);
     }
 
     private final CrawlRunRepository runs;
@@ -55,6 +59,9 @@ public class CrawlService {
     private final Clock clock;
     private final LongSupplier requestCount;
     private final Safety safety;
+    private volatile boolean stopping;
+    private final AtomicReference<CountDownLatch> running =
+            new AtomicReference<>();
 
     public CrawlService(CrawlRunRepository runs, ListingRepository listings, ListingNormalizer normalizer,
                         ExchangeRateService rates, TransactionTemplate tx, Clock clock, LongSupplier requestCount,
@@ -78,6 +85,18 @@ public class CrawlService {
             return Optional.empty();
         }
         Run run = new Run(source, sourceId, started.get(), clock.instant(), LocalDate.now(clock.withZone(MOLDOVA)));
+        CountDownLatch done = new CountDownLatch(1);
+        running.set(done);
+        try {
+            return Optional.of(run(run));
+        } finally {
+            running.set(null);
+            done.countDown();
+        }
+    }
+
+    private CrawlStats run(Run run) {
+        ListingSource source = run.source;
         log.info("{}: crawl {} started", source.code(), run.id);
         rates.ensure(run.today);
         long requestsBefore = requestCount.getAsLong();
@@ -90,7 +109,7 @@ public class CrawlService {
             error = "listing not read to the end: " + e;
             log.error("{}: {}", source.code(), error, e);
         }
-        if (status.equals("completed")) {
+        if (status.equals("completed") && !stopping) {
             error = checkUnseen(run);
             if (error != null) {
                 status = "partial";
@@ -99,7 +118,25 @@ public class CrawlService {
         run.stats.requests(requestCount.getAsLong() - requestsBefore);
         runs.finish(run.id, status, run.stats, error);
         log.info("{}: crawl {} {}: {}", source.code(), run.id, status, run.stats);
-        return Optional.of(run.stats);
+        return run.stats;
+    }
+
+    /**
+     * Stops a running crawl at the next ad and waits for it to record itself as partial, so a restart
+     * can crawl again at once.
+     */
+    @Override
+    public void close() {
+        stopping = true;
+        CountDownLatch done = running.get();
+        if (done != null) {
+            log.info("stopping the running crawl");
+            try {
+                done.await(20, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     /** Re-fetches active ads the pass did not see. Returns why it was not done, or null. */
@@ -119,6 +156,9 @@ public class CrawlService {
         }
         log.info("{}: checking {} ads not seen in this pass", run.source.code(), unseen.size());
         for (Unseen u : unseen) {
+            if (stopping) {
+                return "stopped during the gone check";
+            }
             try {
                 Optional<RawAd> raw = run.source.fetch(u.externalId());
                 if (raw.isPresent()) {
@@ -161,6 +201,9 @@ public class CrawlService {
         }
 
         void accept(RawAd raw) {
+            if (stopping) {
+                throw new CancellationException("the service is stopping");
+            }
             if (!seen.add(raw.externalId())) {
                 return; // listed twice because the listing shifted while it was read
             }

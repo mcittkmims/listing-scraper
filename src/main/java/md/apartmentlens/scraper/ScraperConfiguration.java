@@ -79,7 +79,7 @@ class ScraperConfiguration {
                               ExchangeRateService rates, TransactionTemplate tx, Clock clock, PoliteHttpClient http,
                               ScraperProperties p) {
         return new CrawlService(runs, listings, normalizer, rates, tx, clock, http::requestCount,
-                new CrawlService.Safety(Duration.ofHours(12), p.minSeenShare(), p.maxGoneShare()));
+                new CrawlService.Safety(CrawlService.Safety.DEFAULT.staleRunAfter(), p.minSeenShare(), p.maxGoneShare()));
     }
 
     @Bean
