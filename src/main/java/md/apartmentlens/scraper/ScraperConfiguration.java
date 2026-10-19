@@ -3,18 +3,19 @@ package md.apartmentlens.scraper;
 import java.time.Clock;
 import java.time.Duration;
 import md.apartmentlens.scraper.crawl.CrawlService;
+import md.apartmentlens.scraper.crawl.DefaultPinReview;
 import md.apartmentlens.scraper.crawl.RenormalizeService;
 import md.apartmentlens.scraper.http.PoliteHttpClient;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
-import md.apartmentlens.scraper.normalize.address.AddressNormalizer;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
+import md.apartmentlens.scraper.store.DefaultPinRegistry;
 import md.apartmentlens.scraper.store.ExchangeRateRepository;
 import md.apartmentlens.scraper.store.ListingRepository;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -69,9 +70,22 @@ class ScraperConfiguration {
     }
 
     @Bean
-    ListingNormalizer listingNormalizer(ExchangeRateService rates, ScraperProperties p) {
-        return new ListingNormalizer(new PriceNormalizer(rates), PlaceGazetteer.load(),
-                new AddressNormalizer(StreetGazetteer.load()), new PhoneNormalizer(p.phoneHashKey()));
+    DefaultPinRegistry defaultPinRegistry(JdbcClient jdbc) {
+        DefaultPinRegistry registry = new DefaultPinRegistry(jdbc);
+        registry.refresh();
+        return registry;
+    }
+
+    @Bean
+    ListingNormalizer listingNormalizer(ExchangeRateService rates, DefaultPinRegistry defaultPins, ScraperProperties p) {
+        return new ListingNormalizer(new PriceNormalizer(rates), PlaceGazetteer.load(), StreetGazetteer.load(),
+                new PhoneNormalizer(p.phoneHashKey()), defaultPins);
+    }
+
+    @Bean
+    DefaultPinReview defaultPinReview(DefaultPinRegistry registry, ListingRepository listings,
+                                      RenormalizeService renormalize) {
+        return new DefaultPinReview(registry, listings, renormalize);
     }
 
     @Bean

@@ -7,7 +7,7 @@ import md.apartmentlens.scraper.Fixtures;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
-import md.apartmentlens.scraper.normalize.address.AddressNormalizer;
+import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
@@ -29,8 +29,8 @@ class ListingNormalizerTest {
                     case "USD" -> new BigDecimal("18.0000");
                     default -> BigDecimal.ONE;
                 })),
-                PlaceGazetteer.load(), new AddressNormalizer(StreetGazetteer.load()),
-                new PhoneNormalizer("test-key-0123456789abcdef"));
+                PlaceGazetteer.load(), StreetGazetteer.load(),
+                new PhoneNormalizer("test-key-0123456789abcdef"), DefaultPins.NONE);
     }
 
     @Test

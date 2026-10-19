@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Test;
 
 class LocationNormalizerTest {
 
-    final LocationNormalizer locations = new LocationNormalizer();
+    static final StreetGazetteer STREETS = StreetGazetteer.load();
+    final LocationNormalizer locations = new LocationNormalizer(STREETS, pin -> pin.lat() == 47.0275 && pin.lon() == 28.8317);
     final Place balti = new Place("Bălți", "Бельцы", "city", new GeoPoint(47.7615, 27.9293), 102_457);
     final Place chisinau = new Place("Chișinău", "Кишинёв", "city", new GeoPoint(47.0245, 28.8323), 756_900);
 
@@ -30,10 +31,31 @@ class LocationNormalizerTest {
     }
 
     @Test
+    void defaultPinsAreNotUsed() {
+        Issues issues = new Issues();
+        assertThat(locations.checkPin(new GeoPoint(47.0275, 28.8317), chisinau, issues)).isNull();
+        assertThat(issues.list().getFirst().reason()).isEqualTo("default_position");
+    }
+
+    @Test
+    void theBuildingOfTheAddressWhenThePinIsMissingOrFarFromIt() {
+        GeoPoint building = new GeoPoint(47.06907, 28.89136);
+        var address = new AddressNormalizer.Address("street", "Bucovina", "exact", "5", null, building);
+        var noPin = locations.locate(null, address, null, chisinau, new Issues());
+        assertThat(noPin).isEqualTo(new LocationNormalizer.Location(building, "address", "building"));
+        Issues issues = new Issues();
+        var farPin = locations.locate(new GeoPoint(47.0275, 28.8317), address, null, chisinau, issues);
+        assertThat(farPin.source()).isEqualTo("address");
+        assertThat(issues.list().getFirst().reason()).isEqualTo("far_from_address");
+        var nearPin = locations.locate(new GeoPoint(47.06910, 28.89140), address, null, chisinau, new Issues());
+        assertThat(nearPin.source()).isEqualTo("pin");
+    }
+
+    @Test
     void precision() {
         GeoPoint pin = new GeoPoint(47.0581, 28.8480);
-        var withNumber = new AddressNormalizer.Address("street", "Ceucari", "exact", "1", null);
-        var withoutNumber = new AddressNormalizer.Address("street", "Ceucari", "exact", null, null);
+        var withNumber = new AddressNormalizer.Address("street", "Ceucari", "exact", "1", null, null);
+        var withoutNumber = new AddressNormalizer.Address("street", "Ceucari", "exact", null, null, null);
         assertThat(locations.locate(pin, withNumber, null, chisinau, new Issues()).precision()).isEqualTo("building");
         assertThat(locations.locate(pin, withoutNumber, null, chisinau, new Issues()).precision()).isEqualTo("street");
         var none = locations.locate(null, AddressNormalizer.Address.NONE, null, chisinau, new Issues());

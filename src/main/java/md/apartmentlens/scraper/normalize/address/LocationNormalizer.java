@@ -5,16 +5,18 @@ import md.apartmentlens.scraper.normalize.address.PlaceGazetteer.Place;
 import md.apartmentlens.scraper.source.GeoPoint;
 
 /**
- * The ad's map point and how much to trust it.
+ * The ad's map point and how much to trust it, from the most to the least precise source:
  *
  * <ul>
- *   <li>{@code building}: the seller's pin, with a house number given</li>
- *   <li>{@code street}: the seller's pin without a house number, or the recognized street's centre</li>
- *   <li>{@code district}: the centre of the city district</li>
- *   <li>{@code locality}: the centre of the town or village</li>
+ *   <li>the seller's pin, with a house number given: {@code building}</li>
+ *   <li>the map's position of the street and house number (no pin, a default pin, or a pin that is
+ *       not on that street): {@code building}</li>
+ *   <li>the seller's pin without a house number, or the recognized street's centre: {@code street}</li>
+ *   <li>the centre of the city district: {@code district}</li>
+ *   <li>the centre of the town or village: {@code locality}</li>
  * </ul>
  *
- * A pin outside Moldova, or far from the ad's locality (a default pin left by the seller), is dropped.
+ * A pin outside Moldova, far from the ad's locality, or shared by many ads as a default is not used.
  */
 public final class LocationNormalizer {
 
@@ -27,6 +29,16 @@ public final class LocationNormalizer {
     static final double MAX_LAT = 48.6;
     static final double MIN_LON = 26.6;
     static final double MAX_LON = 30.2;
+    /** A pin farther than this from the building at the given address is not on that building. */
+    static final double PIN_TO_BUILDING_KM = 0.3;
+
+    private final StreetGazetteer streets;
+    private final DefaultPins defaultPins;
+
+    public LocationNormalizer(StreetGazetteer streets, DefaultPins defaultPins) {
+        this.streets = streets;
+        this.defaultPins = defaultPins;
+    }
 
     /** Returns the pin if it can be used; reports it otherwise. */
     public GeoPoint checkPin(GeoPoint pin, Place locality, Issues issues) {
@@ -35,6 +47,10 @@ public final class LocationNormalizer {
         }
         if (pin.lat() < MIN_LAT || pin.lat() > MAX_LAT || pin.lon() < MIN_LON || pin.lon() > MAX_LON) {
             issues.add("pin", pin.lat() + "," + pin.lon(), "outside_moldova");
+            return null;
+        }
+        if (defaultPins.isDefault(pin)) {
+            issues.add("pin", pin.lat() + "," + pin.lon(), "default_position");
             return null;
         }
         if (locality != null) {
@@ -48,18 +64,41 @@ public final class LocationNormalizer {
         return pin;
     }
 
+    /** True when the street has buildings right around the pin. */
+    private boolean onStreet(GeoPoint pin, StreetGazetteer.Street street) {
+        return street != null && streets.streetsAround(pin, 0.06).stream()
+                .anyMatch(s -> s.index() == street.index() || s.name().equals(street.name()));
+    }
+
     public Location locate(GeoPoint pin, AddressNormalizer.Address address, Place district, Place locality,
                            Issues issues) {
+        GeoPoint building = address.building();
         if (pin != null) {
             String precision = address.houseNumber() != null ? "building" : "street";
+            if (building != null && pin.kmTo(building) > PIN_TO_BUILDING_KM) {
+                String raw = Math.round(pin.kmTo(building) * 1000) + " m from " + address.streetName() + " "
+                        + address.houseNumber();
+                if (!onStreet(pin, address.street())) {
+                    // Not even on the street the seller wrote: the address is more likely than the pin.
+                    issues.add("pin", raw, "far_from_address");
+                    return new Location(building, "address", "building");
+                }
+                // On the right street but far from that number: the pin or the number is off, so the
+                // building is not known for sure.
+                issues.add("pin", raw, "off_house_number");
+                precision = "street";
+            }
             if (address.street() != null) {
-                double km = Math.max(0, pin.kmTo(address.street().point()) - address.street().extentKm());
+                double km = streets.distanceKm(address.street(), pin);
                 if (km > AddressNormalizer.PIN_RADIUS_KM) {
                     issues.add("pin", Math.round(km * 10) / 10.0 + " km from " + address.streetName(), "far_from_street");
                     precision = "street";
                 }
             }
             return new Location(pin, "pin", precision);
+        }
+        if (building != null) {
+            return new Location(building, "address", "building");
         }
         if (address.street() != null) {
             return new Location(address.street().point(), "street", "street");

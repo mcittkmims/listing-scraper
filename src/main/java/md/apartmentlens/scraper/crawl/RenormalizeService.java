@@ -46,34 +46,48 @@ public class RenormalizeService {
         short sourceId = runs.sourceId(source.code());
         Set<LocalDate> ratesChecked = new HashSet<>();
         long afterId = 0;
-        int done = 0;
-        int failed = 0;
+        int[] counts = new int[2];
         while (true) {
             List<ListingRepository.Raw> batch = listings.toRenormalize(sourceId, ListingNormalizer.VERSION, all, afterId, BATCH);
             if (batch.isEmpty()) {
                 break;
             }
-            for (ListingRepository.Raw raw : batch) {
-                afterId = raw.listingId();
-                try {
-                    LocalDate day = raw.fetchedAt().atZone(CrawlService.MOLDOVA).toLocalDate();
-                    if (ratesChecked.add(day)) {
-                        rates.ensure(day);
-                    }
-                    SourceAd ad = source.parse(new RawAd(raw.externalId(), Bytes.gunzip(raw.bodyGzip())));
-                    NormalizedListing n = normalizer.normalize(ad, day);
-                    tx.executeWithoutResult(s -> listings.update(raw.listingId(), n, null, ad.postedAt(),
-                            ad.republishedAt(), raw.sha256(), ListingNormalizer.VERSION));
-                    done++;
-                } catch (RuntimeException e) {
-                    failed++;
-                    log.warn("{} ad {}: not normalized again: {}", source.code(), raw.externalId(), e.toString());
-                }
-            }
-            log.info("{}: {} ads normalized again so far", source.code(), done);
+            apply(source, batch, ratesChecked, counts);
+            afterId = batch.getLast().listingId();
+            log.info("{}: {} ads normalized again so far", source.code(), counts[0]);
         }
-        log.info("{}: normalized {} ads again with version {}, {} failed", source.code(), done,
-                ListingNormalizer.VERSION, failed);
-        return done;
+        log.info("{}: normalized {} ads again with version {}, {} failed", source.code(), counts[0],
+                ListingNormalizer.VERSION, counts[1]);
+        return counts[0];
+    }
+
+    /** Normalizes these ads again, e.g. after their pin turned out to be a default one. */
+    public int renormalize(ListingSource source, List<Long> ids) {
+        Set<LocalDate> ratesChecked = new HashSet<>();
+        int[] counts = new int[2];
+        for (int from = 0; from < ids.size(); from += BATCH) {
+            apply(source, listings.rawOf(ids.subList(from, Math.min(ids.size(), from + BATCH))), ratesChecked, counts);
+        }
+        return counts[0];
+    }
+
+    private void apply(ListingSource source, List<ListingRepository.Raw> batch, Set<LocalDate> ratesChecked,
+                       int[] counts) {
+        for (ListingRepository.Raw raw : batch) {
+            try {
+                LocalDate day = raw.fetchedAt().atZone(CrawlService.MOLDOVA).toLocalDate();
+                if (ratesChecked.add(day)) {
+                    rates.ensure(day);
+                }
+                SourceAd ad = source.parse(new RawAd(raw.externalId(), Bytes.gunzip(raw.bodyGzip())));
+                NormalizedListing n = normalizer.normalize(ad, day);
+                tx.executeWithoutResult(s -> listings.update(raw.listingId(), n, null, ad.postedAt(),
+                        ad.republishedAt(), raw.sha256(), ListingNormalizer.VERSION));
+                counts[0]++;
+            } catch (RuntimeException e) {
+                counts[1]++;
+                log.warn("{} ad {}: not normalized again: {}", source.code(), raw.externalId(), e.toString());
+            }
+        }
     }
 }

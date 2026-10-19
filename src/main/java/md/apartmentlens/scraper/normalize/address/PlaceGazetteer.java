@@ -57,10 +57,14 @@ public final class PlaceGazetteer {
     }
 
     private final Map<String, List<Place>> settlements = new HashMap<>();
+    private final List<Place> allSettlements = new ArrayList<>();
     private final Map<String, List<Place>> districts = new HashMap<>();
 
     PlaceGazetteer(List<Place> places) {
         for (Place p : places) {
+            if (p.isSettlement()) {
+                allSettlements.add(p);
+            }
             Map<String, List<Place>> index = p.isSettlement() ? settlements : districts;
             for (String name : new String[] {p.nameRo(), p.nameRu()}) {
                 if (name != null && !name.isEmpty()) {
@@ -174,6 +178,27 @@ public final class PlaceGazetteer {
             return candidates.stream().min(Comparator.comparingDouble(p -> p.point().kmTo(from)));
         }
         return candidates.stream().min(Comparator.comparingInt(Place::rank).thenComparing(p -> -p.population()));
+    }
+
+    /**
+     * The settlement a point belongs to: the one whose centre is nearest relative to its size, among
+     * settlements within 25 km. A street 12 km from central Chișinău but 1 km from Cricova's centre
+     * belongs to Cricova.
+     */
+    public Optional<Place> ownerOf(GeoPoint p) {
+        Place best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (Place s : allSettlements) {
+            if (Math.abs(s.point().lat() - p.lat()) > 0.25 || Math.abs(s.point().lon() - p.lon()) > 0.35) {
+                continue;
+            }
+            double score = s.point().kmTo(p) / s.radiusKm();
+            if (score < bestScore) {
+                bestScore = score;
+                best = s;
+            }
+        }
+        return Optional.ofNullable(best);
     }
 
     /** A city district (sector) or quarter of a settlement, e.g. "Botanica" in Chișinău. */

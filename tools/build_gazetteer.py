@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Builds the street and place gazetteer used by the address normalizer.
 
-Downloads named streets and settlements of Moldova from OpenStreetMap (Overpass API)
-and writes two resource files:
+Downloads named streets, settlements and address points of Moldova from OpenStreetMap
+(Overpass API) and writes three resource files:
 
-  src/main/resources/gazetteer/md-places.tsv
-  src/main/resources/gazetteer/md-streets.tsv.gz
+  src/main/resources/gazetteer/md-places.tsv        towns, villages, city districts
+  src/main/resources/gazetteer/md-streets.tsv.gz    streets with Romanian, Russian and old names
+  src/main/resources/gazetteer/md-addresses.tsv.gz  house numbers with coordinates, by street
 
 Run it again to refresh the data:  python3 tools/build_gazetteer.py
+Rebuild from saved downloads:      python3 tools/build_gazetteer.py places.tsv streets.tsv addresses.tsv
 Data © OpenStreetMap contributors, available under the Open Database License (ODbL).
 """
 import csv
@@ -30,6 +32,13 @@ STREETS_QUERY = """
 [out:csv(::id,::lat,::lon,"highway","name","name:ro","name:ru","old_name","old_name:ru","alt_name","alt_name:ru";true;"\\t")][timeout:600];
 area["ISO3166-1"="MD"][admin_level=2]->.md;
 way["highway"]["name"](area.md);
+out center;
+"""
+
+ADDRESSES_QUERY = """
+[out:csv(::id,::lat,::lon,"addr:street","addr:housenumber","addr:city";true;"\\t")][timeout:900];
+area["ISO3166-1"="MD"][admin_level=2]->.md;
+nwr["addr:housenumber"]["addr:street"](area.md);
 out center;
 """
 
@@ -209,15 +218,159 @@ def build_streets(text, places):
             aliases.discard(ru)
             aliases.discard("")
             extent = max(km(c["lat"], c["lon"], w[0], w[1]) for w in c["ways"])
-            out.append((street_type, ro, ru, "|".join(sorted(aliases)),
-                        f"{c['lat']:.6f}", f"{c['lon']:.6f}", f"{extent:.2f}", str(len(c["ways"]))))
-    out.sort(key=lambda r: (r[1] or r[2], r[0], r[4]))
+            out.append([street_type, ro, ru, aliases, c["lat"], c["lon"], extent, len(c["ways"])])
+    return out
+
+
+def add_addresses(streets, text, places):
+    """Links each address point to its street (same name, nearest within 2 km). Names that only exist
+    on addresses become streets of their own, clustered like roads. Returns (street index, number, lat, lon)."""
+    index = defaultdict(list)
+    for i, st in enumerate(streets):
+        for name in [st[1], st[2], *st[3]]:
+            if name:
+                index[fold(name)].append(i)
+    points, orphans = [], defaultdict(list)
+    for r in csv.DictReader(io.StringIO(text), delimiter="\t"):
+        raw = clean(r["addr:street"])
+        number = clean(r["addr:housenumber"])
+        if not raw or not number:
+            continue
+        lat, lon = float(r["@lat"]), float(r["@lon"])
+        city = clean(r.get("addr:city"))
+        cyrillic = re.search(r"[А-Яа-яЁё]", raw)
+        street_type, name = split_type(raw, RU_TYPES if cyrillic else RO_TYPES)
+        if not name or ROUTE_NAME.search(raw) or is_connector(name, places):
+            continue
+        best = None
+        for i in index.get(fold(name), ()):
+            d = km(lat, lon, streets[i][4], streets[i][5]) - streets[i][6]
+            if d < 2 and (best is None or d < best[0]):
+                best = (d, i)
+        if best:
+            points.append((best[1], number, lat, lon, city))
+        else:
+            orphans[(street_type or "street", name, bool(cyrillic))].append((lat, lon, number, city))
+    grid = defaultdict(list)
+    for i, st in enumerate(streets):
+        grid[(int(st[4] * 50), int(st[5] * 50))].append(i)
+    added = attached = dropped = 0
+    for (street_type, name, cyrillic), pts in orphans.items():
+        for c in single_link([(p[0], p[1], p) for p in pts], 1.0):
+            road = variant_of(name, c["lat"], c["lon"], streets, grid)
+            if road is not None:
+                # Another spelling of a nearby road ("M. Sadoveanu", "Lermontova"): its buildings belong there.
+                attached += 1
+                for w in c["ways"]:
+                    points.append((road, w[2][2], w[2][0], w[2][1], w[2][3]))
+                continue
+            if len(c["ways"]) < 2 or re.search(r"(^|\s)\w{1,2}\.", name):
+                dropped += 1  # one address, or an abbreviated name that matches no road: too weak to add
+                continue
+            extent = max(km(c["lat"], c["lon"], w[0], w[1]) for w in c["ways"])
+            streets.append([street_type, "" if cyrillic else name, name if cyrillic else "", set(),
+                            c["lat"], c["lon"], extent, 0])
+            i = len(streets) - 1
+            added += 1
+            for w in c["ways"]:
+                points.append((i, w[2][2], w[2][0], w[2][1], w[2][3]))
+    print(f"addresses: {len(points)} points, {added} streets known only from addresses, "
+          f"{attached} spelling variants attached to roads, {dropped} dropped")
+    return points
+
+
+ENDINGS = ("ului", "ilor", "elor", "ogo", "ova", "eva", "ina", "oi", "ei", "lor", "ii", "a", "i", "u", "e")
+
+
+def stem_words(key):
+    out = []
+    for w in key.split():
+        for e in ENDINGS:
+            if len(w) >= 5 and w.endswith(e) and len(w) - len(e) >= 4:
+                w = w[: -len(e)]
+                break
+        out.append(w)
+    return out
+
+
+def variant_of(name, lat, lon, streets, grid):
+    """The one road within 1 km whose name this is another spelling of, or None. Accepted: the same word
+    stems ("Lermontova" / Lermontov), initials of the road's words ("M. Sadoveanu" / Mihail Sadoveanu),
+    or a one-letter difference in a long name."""
+    key = fold(name)
+    words = stem_words(key)
+    found = set()
+    gi, gj = int(lat * 50), int(lon * 50)
+    for di in (-1, 0, 1):
+        for dj in (-1, 0, 1):
+            for i in grid.get((gi + di, gj + dj), ()):
+                st = streets[i]
+                if km(lat, lon, st[4], st[5]) - st[6] > 1.0:
+                    continue
+                for road_name in (st[1], st[2]):
+                    if road_name and same_street(words, key, fold(road_name)):
+                        found.add(i)
+    names = {fold(streets[i][1] or streets[i][2]) for i in found}
+    if len(names) != 1:
+        return None
+    return min(found, key=lambda i: km(lat, lon, streets[i][4], streets[i][5]))
+
+
+def same_street(words, key, road_key):
+    road_words = stem_words(road_key)
+    road_last = road_words[-1] if road_words else ""
+    if words == road_words:
+        return True
+    if words and words[-1] == road_last and len(road_last) >= 5:
+        # "m sadoveanu", "sadoveanu" for "mihail sadoveanu": every other word an initial or missing
+        rest, road_rest = words[:-1], road_words[:-1]
+        return len(rest) <= len(road_rest) and all(
+            len(w) <= 2 and any(r.startswith(w) for r in road_rest) for w in rest)
+    return len(key) >= 8 and levenshtein(key, road_key) <= 1
+
+
+def levenshtein(a, b):
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def street_cities(streets, points):
+    """The town most of a street's buildings name in addr:city, when at least 70 % agree."""
+    counts = defaultdict(lambda: defaultdict(int))
+    for street, _, _, _, city in points:
+        if city:
+            counts[street][city] += 1
+    out = {}
+    for street, c in counts.items():
+        city, n = max(c.items(), key=lambda kv: kv[1])
+        if n >= 0.7 * sum(c.values()):
+            out[street] = city
+    return out
+
+
+def write_streets(streets, points):
+    cities = street_cities(streets, points)
+    order = sorted(range(len(streets)), key=lambda i: (streets[i][1] or streets[i][2], streets[i][0], streets[i][4]))
+    position = {old: new for new, old in enumerate(order)}
     with gzip.open(OUT / "md-streets.tsv.gz", "wt", encoding="utf-8", newline="") as f:
         f.write("# Named streets of Moldova. Data © OpenStreetMap contributors, ODbL.\n")
-        f.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\n")
-        for row in out:
-            f.write("\t".join(row) + "\n")
-    print(f"streets: {len(out)}")
+        f.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\tcity\n")
+        for i in order:
+            st = streets[i]
+            f.write("\t".join([st[0], st[1], st[2], "|".join(sorted(st[3])), f"{st[4]:.6f}", f"{st[5]:.6f}",
+                                f"{st[6]:.2f}", str(st[7]), cities.get(i, "")]) + "\n")
+    with gzip.open(OUT / "md-addresses.tsv.gz", "wt", encoding="utf-8", newline="") as f:
+        f.write("# House numbers of Moldova; street = row of md-streets.tsv.gz (0-based, after the header). "
+                "Data © OpenStreetMap contributors, ODbL.\n")
+        f.write("street\tnumber\tlat\tlon\n")
+        for street, number, lat, lon, _ in sorted(points, key=lambda p: (position[p[0]], p[1])):
+            f.write(f"{position[street]}\t{number}\t{lat:.5f}\t{lon:.5f}\n")
+    print(f"streets: {len(streets)}")
 
 
 def single_link(ways, max_km):
@@ -256,14 +409,17 @@ def most_common(values):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    if len(sys.argv) == 3:  # offline rebuild from previously downloaded files
-        places_text = Path(sys.argv[1]).read_text(encoding="utf-8")
-        streets_text = Path(sys.argv[2]).read_text(encoding="utf-8")
+    if len(sys.argv) == 4:  # offline rebuild from previously downloaded files
+        places_text, streets_text, addresses_text = (Path(a).read_text(encoding="utf-8") for a in sys.argv[1:4])
     else:
         places_text = fetch(PLACES_QUERY)
         streets_text = fetch(STREETS_QUERY)
+        addresses_text = fetch(ADDRESSES_QUERY)
     build_places(places_text)
-    build_streets(streets_text, place_keys(places_text))
+    places = place_keys(places_text)
+    streets = build_streets(streets_text, places)
+    points = add_addresses(streets, addresses_text, places)
+    write_streets(streets, points)
 
 
 if __name__ == "__main__":

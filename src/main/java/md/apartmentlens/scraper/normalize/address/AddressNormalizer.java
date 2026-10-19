@@ -25,16 +25,46 @@ public final class AddressNormalizer {
     private static final Pattern TRAILING_NUMBER = Pattern.compile(
             "^(.*?\\p{L}.*?)(\\s*,\\s*|\\s+)(?:nr\\.?\\s*)?(\\d{1,3}(?:\\s*/\\s*\\d{1,3})?\\s*[A-Za-z]?)$");
 
+    /**
+     * @param street   the recognized street with its position, when known
+     * @param building the map's position of this house number on that street, when the map has it
+     */
     public record Address(String streetType, String streetName, String streetMatch, String houseNumber,
-                          StreetGazetteer.Street street) {
+                          StreetGazetteer.Street street, GeoPoint building) {
 
-        static final Address NONE = new Address(null, null, null, null, null);
+        static final Address NONE = new Address(null, null, null, null, null, null);
     }
 
     private final StreetGazetteer streets;
+    private final PlaceGazetteer places;
+    private final java.util.Map<Integer, Optional<Place>> owners = new java.util.concurrent.ConcurrentHashMap<>();
 
-    public AddressNormalizer(StreetGazetteer streets) {
+    public AddressNormalizer(StreetGazetteer streets, PlaceGazetteer places) {
         this.streets = streets;
+        this.places = places;
+    }
+
+    /**
+     * True unless the street clearly belongs to another settlement inside the locality's search area: its
+     * buildings' addresses name another town, or (with no addresses) it lies away from the locality's core
+     * and well inside a neighbouring village.
+     */
+    private boolean inLocality(StreetGazetteer.Street street, Place locality) {
+        if (!street.city().isEmpty()) {
+            String city = PlaceGazetteer.placeKey(street.city());
+            return city.equals(Text.fold(locality.nameRo())) || city.equals(Text.fold(locality.nameRu()));
+        }
+        double fromLocality = Math.max(0, street.point().kmTo(locality.point()) - street.extentKm());
+        if (fromLocality <= 0.6 * locality.radiusKm()) {
+            return true;
+        }
+        return owners.computeIfAbsent(street.index(), i -> places.ownerOf(street.point()))
+                .map(owner -> owner.equals(locality) || owner.point().kmTo(street.point()) > owner.radiusKm())
+                .orElse(true);
+    }
+
+    public StreetGazetteer streets() {
+        return streets;
     }
 
     /**
@@ -49,7 +79,7 @@ public final class AddressNormalizer {
             street = null;
         }
         if (street == null) {
-            return new Address(null, null, null, houseValue(house, houseRaw, issues), null);
+            return new Address(null, null, null, houseValue(house, houseRaw, issues), null, null);
         }
         street = mainPart(street, locality, pin);
 
@@ -77,21 +107,23 @@ public final class AddressNormalizer {
             if (split.type() == null) {
                 issues.add("street", streetRaw, "unparsed");
             }
-            return new Address(null, null, null, houseNumber, null); // only a type word, "str": no street given
+            return new Address(null, null, null, houseNumber, null, null); // only a type word, "str": no street given
         }
         if (namesLocality(split.name(), locality)) {
             // "Trușeni" or "s. Trușeni" as the street of an ad in Trușeni: the seller gave no street.
-            return new Address(null, null, null, houseNumber, null);
+            return new Address(null, null, null, houseNumber, null, null);
         }
         Optional<Match> match = resolve(split.name(), split.type(), locality, pin);
         if (match.isEmpty()) {
             if (locality != null) {
                 issues.add("street", streetRaw, "unresolved");
             }
-            return new Address(split.type(), split.name(), "unresolved", houseNumber, null);
+            return new Address(split.type(), split.name(), "unresolved", houseNumber, null, null);
         }
         Match m = match.get();
-        return new Address(m.type() != null ? m.type() : split.type(), m.name(), m.method(), houseNumber, m.street());
+        GeoPoint building = streets.address(m.street(), houseNumber).orElse(null);
+        return new Address(m.type() != null ? m.type() : split.type(), m.name(), m.method(), houseNumber, m.street(),
+                building);
     }
 
     /**
@@ -151,6 +183,9 @@ public final class AddressNormalizer {
     private Optional<Match> resolveOnce(String name, String type, Place locality, GeoPoint pin) {
         if (pin != null) {
             Optional<Match> near = streets.resolve(name, type, pin, PIN_RADIUS_KM, true);
+            if (near.isEmpty()) {
+                near = streets.resolveAtPin(name, type, pin);
+            }
             if (near.isPresent()) {
                 return near;
             }
@@ -158,14 +193,19 @@ public final class AddressNormalizer {
         if (locality == null) {
             return Optional.empty();
         }
-        Optional<Match> found = streets.resolve(name, type, locality.point(), locality.radiusKm(), false);
+        // Without the seller's pin, the ad's own locality first: an ad in Chișinău gets Chișinău's Strada Mihail
+        // Sadoveanu, not Cricova's. Only when the locality has no such street, the surrounding area: sellers
+        // list streets of Durlești or Codru on the city's edge as "Chișinău".
+        Optional<Match> found = streets.resolve(name, type, locality.point(), locality.radiusKm(), false,
+                s -> inLocality(s, locality));
+        if (found.isEmpty()) {
+            found = streets.resolve(name, type, locality.point(), locality.radiusKm(), false);
+        }
         // An approximate match far from the seller's pin is more likely a different street.
         if (found.isPresent() && pin != null && found.get().street() != null
-                && !found.get().method().equals("exact") && !found.get().method().equals("alias")) {
-            StreetGazetteer.Street st = found.get().street();
-            if (pin.kmTo(st.point()) - st.extentKm() > 2 * PIN_RADIUS_KM) {
-                return Optional.empty();
-            }
+                && !found.get().method().equals("exact") && !found.get().method().equals("alias")
+                && streets.distanceKm(found.get().street(), pin) > 2 * PIN_RADIUS_KM) {
+            return Optional.empty();
         }
         return found;
     }

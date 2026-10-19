@@ -21,7 +21,7 @@ import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
-import md.apartmentlens.scraper.normalize.address.AddressNormalizer;
+import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
@@ -31,6 +31,7 @@ import md.apartmentlens.scraper.source.RawAd;
 import md.apartmentlens.scraper.source.SourceAd;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
+import md.apartmentlens.scraper.store.DefaultPinRegistry;
 import md.apartmentlens.scraper.store.ExchangeRateRepository;
 import md.apartmentlens.scraper.store.ListingRepository;
 import org.flywaydb.core.Flyway;
@@ -52,6 +53,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 class CrawlServiceIT {
 
+    static final StreetGazetteer STREETS = StreetGazetteer.load();
     static PostgreSQLContainer db;
     static DataSource scraper;
     static JdbcClient admin;
@@ -83,6 +85,8 @@ class CrawlServiceIT {
     final MutableClock clock = new MutableClock(Instant.parse("2026-10-19T08:00:00Z"));
     CrawlService crawls;
     RenormalizeService renormalize;
+    DefaultPinRegistry defaultPins;
+    DefaultPinReview pinReview;
 
     @BeforeEach
     void setUp() {
@@ -95,13 +99,16 @@ class CrawlServiceIT {
                 return new java.util.HashMap<>(Map.of("EUR", new BigDecimal("20.0000"), "USD", new BigDecimal("18.0000")));
             }
         });
+        defaultPins = new DefaultPinRegistry(jdbc);
         ListingNormalizer normalizer = new ListingNormalizer(new PriceNormalizer(rates), PlaceGazetteer.load(),
-                new AddressNormalizer(StreetGazetteer.load()), new PhoneNormalizer("test-key-0123456789abcdef"));
+                STREETS, new PhoneNormalizer("test-key-0123456789abcdef"), defaultPins);
         CrawlRunRepository runs = new CrawlRunRepository(jdbc);
         ListingRepository listings = new ListingRepository(jdbc, Fixtures.JSON);
         crawls = new CrawlService(runs, listings, normalizer, rates, tx, clock, () -> 0,
                 new CrawlService.Safety(Duration.ofHours(12), 0.5, 1.0));
         renormalize = new RenormalizeService(runs, listings, normalizer, rates, tx);
+        pinReview = new DefaultPinReview(defaultPins, listings, renormalize);
+        defaultPins.refresh();
     }
 
     @Test
@@ -265,6 +272,31 @@ class CrawlServiceIT {
 
         assertThat(admin.sql("select status from ingest.crawl_run").query(String.class).single()).isEqualTo("partial");
         assertThat(count("ingest.listing")).isEqualTo(1);
+    }
+
+    @Test
+    void aPinSharedByAdsOnManyStreetsIsADefaultAndNotUsed() {
+        // 999.md's default position in central Chișinău, kept by sellers who did not move the map.
+        String[] streets = {"str. Ismail", "bd. Dacia", "str. Columna", "str. Alba Iulia", "bd. Moscova", "str. Grenoble"};
+        for (int i = 0; i < streets.length; i++) {
+            String body = new String(copy("apartment.json", "10000030" + i).body(), StandardCharsets.UTF_8)
+                    .replace("\"lat\": 47.06786, \"lon\": 28.84016", "\"lat\": 47.02754, \"lon\": 28.83165")
+                    .replace("ул. Чеукарь", streets[i]);
+            source.put(new RawAd("10000030" + i, body.getBytes(StandardCharsets.UTF_8)));
+        }
+        source.put(Fixtures.ninetyNine("apartment.json")); // its own pin, on Ceucari
+
+        crawls.crawl(source);
+        assertThat(count("ingest.listing where pin is not null")).isEqualTo(7);
+        assertThat(defaultPins.size()).isZero(); // not known yet: found after the pass
+
+        pinReview.review(source);
+
+        assertThat(defaultPins.size()).isEqualTo(1);
+        assertThat(count("ingest.listing where location_source = 'pin'")).isEqualTo(1);
+        assertThat(admin.sql("select st_y(pin::geometry) from ingest.listing where external_id = '100000300'")
+                .query(Double.class).single()).isEqualTo(47.02754); // the seller's pin is still kept
+        assertThat(count("ingest.listing where issues @> '[{\"reason\": \"default_position\"}]'")).isEqualTo(6);
     }
 
     static RawAd copy(String fixture, String id) {

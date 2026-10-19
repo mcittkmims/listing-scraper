@@ -40,10 +40,14 @@ public final class StreetGazetteer {
             "aia", "lui", "lor", "ei", "ii", "ia", "a", "i", "e", "u");
     /** Two map names this similar are spellings of one street. */
     static final double SAME_NAME = 0.92;
+    /** Pieces of one street are at most this far apart. */
+    static final double SAME_STREET_KM = 1.5;
     private static final double CELL_DEG = 0.05;
 
+    /** @param city the town most of the street's buildings name in their address, or empty when unknown */
     public record Street(String type, String nameRo, String nameRu, GeoPoint point, double extentKm,
-                         String keyRo, String keyRu, Set<String> aliasKeys, String translitRu) {
+                         String keyRo, String keyRu, Set<String> aliasKeys, String translitRu, int index,
+                         String city) {
 
         /** The name to show: Romanian, or Russian where the map has no Romanian name. */
         public String name() {
@@ -62,12 +66,19 @@ public final class StreetGazetteer {
     public record Match(String name, String type, Street street, String method) {
     }
 
+    /** Looser spelling accepted only for streets with buildings right around the pin. */
+    static final double NEARBY_MIN = 0.65;
+    static final double NEARBY_MARGIN = 0.15;
+    static final double NEARBY_KM = 0.12;
+
     private final List<Street> streets;
+    private final AddressIndex addresses;
     private final Map<String, List<Street>> byKey = new HashMap<>();
     private final Map<Long, List<Street>> byCell = new HashMap<>();
 
-    StreetGazetteer(List<Street> streets) {
+    StreetGazetteer(List<Street> streets, AddressIndex addresses) {
         this.streets = streets;
+        this.addresses = addresses;
         for (Street s : streets) {
             for (String key : allKeys(s)) {
                 byKey.computeIfAbsent(key, k -> new ArrayList<>()).add(s);
@@ -89,14 +100,21 @@ public final class StreetGazetteer {
     }
 
     public static StreetGazetteer load() {
-        try (InputStream raw = StreetGazetteer.class.getResourceAsStream("/gazetteer/md-streets.tsv.gz")) {
-            if (raw == null) {
-                throw new IllegalStateException("gazetteer/md-streets.tsv.gz is missing from the classpath");
-            }
-            return new StreetGazetteer(parse(new GZIPInputStream(raw)));
+        try (InputStream raw = resource("/gazetteer/md-streets.tsv.gz");
+             InputStream addressesRaw = resource("/gazetteer/md-addresses.tsv.gz")) {
+            List<Street> list = parse(new GZIPInputStream(raw));
+            return new StreetGazetteer(list, AddressIndex.parse(new GZIPInputStream(addressesRaw, 1 << 16), list.size()));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private static InputStream resource(String name) {
+        InputStream in = StreetGazetteer.class.getResourceAsStream(name);
+        if (in == null) {
+            throw new IllegalStateException(name + " is missing from the classpath");
+        }
+        return in;
     }
 
     static List<Street> parse(InputStream in) throws IOException {
@@ -114,20 +132,42 @@ public final class StreetGazetteer {
             }
             String[] f = line.split("\t", -1);
             list.add(street(f[0], f[1], f[2], f[3].isEmpty() ? List.of() : Arrays.asList(f[3].split("\\|")),
-                    new GeoPoint(Double.parseDouble(f[4]), Double.parseDouble(f[5])), Double.parseDouble(f[6])));
+                    new GeoPoint(Double.parseDouble(f[4]), Double.parseDouble(f[5])), Double.parseDouble(f[6]),
+                    list.size(), f.length > 8 ? f[8] : ""));
         }
         return list;
     }
 
-    static Street street(String type, String nameRo, String nameRu, List<String> aliases, GeoPoint point, double extentKm) {
+    static Street street(String type, String nameRo, String nameRu, List<String> aliases, GeoPoint point, double extentKm,
+                         int index, String city) {
         Set<String> aliasKeys = aliases.stream().map(Text::fold).filter(k -> !k.isEmpty())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         return new Street(type, nameRo, nameRu, point, extentKm, Text.fold(nameRo), Text.fold(nameRu), aliasKeys,
-                nameRu.isEmpty() ? "" : Text.cyrillicToLatinKey(nameRu));
+                nameRu.isEmpty() ? "" : Text.cyrillicToLatinKey(nameRu), index, city);
     }
 
     public int size() {
         return streets.size();
+    }
+
+    public int addressCount() {
+        return addresses.size();
+    }
+
+    /** The building with this house number on the street, from the map's address points. */
+    public Optional<GeoPoint> address(Street street, String houseNumber) {
+        return street == null ? Optional.empty() : addresses.find(street.index(), houseNumber);
+    }
+
+    /** Streets with a building within {@code radiusKm} of the point, nearest first. */
+    public List<Street> streetsAround(GeoPoint point, double radiusKm) {
+        return addresses.streetsAround(point, radiusKm).stream().map(streets::get).toList();
+    }
+
+    /** Distance from a point to a street: to its nearest building, or to its line's extent when it has none. */
+    public double distanceKm(Street s, GeoPoint p) {
+        double d = addresses.distanceKm(s.index(), p);
+        return Double.isInfinite(d) ? Math.max(0, s.point().kmTo(p) - s.extentKm()) : d;
     }
 
     /**
@@ -140,14 +180,24 @@ public final class StreetGazetteer {
      * @param pinned   true when the centre is the seller's pin, which can tell same-named streets apart
      */
     public Optional<Match> resolve(String name, String type, GeoPoint center, double radiusKm, boolean pinned) {
+        return resolve(name, type, center, radiusKm, pinned, s -> true);
+    }
+
+    /** Like {@link #resolve(String, String, GeoPoint, double, boolean)}, among the streets {@code allowed} accepts. */
+    public Optional<Match> resolve(String name, String type, GeoPoint center, double radiusKm, boolean pinned,
+                                   java.util.function.Predicate<Street> allowed) {
         String key = Text.fold(name);
         if (key.isEmpty() || center == null) {
             return Optional.empty();
         }
-        List<Street> near = nearby(center, radiusKm);
+        List<Street> near = nearby(center, radiusKm).stream().filter(allowed).toList();
 
-        // 1-2. The name exactly, as official, Russian, old or alternative name.
-        List<Street> exact = near.stream().filter(s -> allKeys(s).contains(key)).toList();
+        // 1-2. The name exactly, as official, Russian, old or alternative name, or a Russian spelling that
+        // transliterates exactly to the official name ("ул. Яловень" for Ialoveni).
+        String translit = Text.hasCyrillic(name) ? Text.cyrillicToLatinKey(name) : null;
+        List<Street> exact = near.stream()
+                .filter(s -> allKeys(s).contains(key) || (translit != null && s.keyRo().equals(translit)))
+                .toList();
         if (!exact.isEmpty()) {
             List<Street> official = exact.stream().filter(s -> s.nameKey().equals(key)).toList();
             boolean specificType = type != null && !type.equals("street");
@@ -228,6 +278,44 @@ public final class StreetGazetteer {
     }
 
     /**
+     * The street the seller meant, among only the streets with buildings right around the pin: a looser
+     * spelling is accepted there ("ул. Буковина" for Strada Bucovinei), as no other street is close by.
+     * Used when {@link #resolve} finds nothing; the pin must be the seller's own, not a default one.
+     */
+    public Optional<Match> resolveAtPin(String name, String type, GeoPoint pin) {
+        String key = Text.fold(name);
+        if (key.length() < 4 || pin == null) {
+            return Optional.empty();
+        }
+        boolean cyrillic = Text.hasCyrillic(name);
+        String latin = cyrillic ? Text.cyrillicToLatinKey(name) : key;
+        String latinStem = stem(latin);
+        record Scored(Street street, double score) {
+        }
+        List<Scored> scored = streetsAround(pin, NEARBY_KM).stream()
+                .map(s -> new Scored(s, Math.max(Math.max(
+                        s.keyRo().isEmpty() ? 0 : Math.max(Text.similarity(latin, s.keyRo()),
+                                Text.similarity(stem(latin), stem(s.keyRo()))),
+                        cyrillic && !s.keyRu().isEmpty() ? Text.similarity(key, s.keyRu())
+                                : s.translitRu().isEmpty() ? 0 : Text.similarity(latin, s.translitRu())),
+                        !latinStem.isEmpty() && !s.keyRo().isEmpty() && latinStem.equals(stem(s.keyRo())) ? STEM_SCORE : 0)))
+                .sorted(Comparator.comparingDouble(Scored::score).reversed())
+                .toList();
+        if (scored.isEmpty() || scored.getFirst().score() < NEARBY_MIN) {
+            return Optional.empty();
+        }
+        Scored best = scored.getFirst();
+        boolean clearWinner = scored.stream()
+                .filter(x -> Text.similarity(x.street().nameKey(), best.street().nameKey()) < SAME_NAME)
+                .noneMatch(x -> x.score() > best.score() - NEARBY_MARGIN);
+        if (!clearWinner) {
+            return Optional.empty();
+        }
+        Street st = best.street();
+        return Optional.of(new Match(st.name(), st.type(), st, "nearby"));
+    }
+
+    /**
      * True when the seller's words are an incomplete or abbreviated form of the name: each word is a
      * whole word of the name, an initial ("M Eminescu") or the start of one ("Pan Halippa" for Pantelimon),
      * and at least one word of four or more letters matches in full.
@@ -254,6 +342,10 @@ public final class StreetGazetteer {
                 shortened = true;
             }
             nameWords.remove(i);
+        }
+        // A number left over is another street: "Stradela 2 Muncești" is not Șoseaua Muncești.
+        if (nameWords.stream().anyMatch(w -> w.chars().anyMatch(Character::isDigit))) {
+            return false;
         }
         // Either shortened, or all words given in another order ("Deleanu Liviu" for Liviu Deleanu).
         return fullWord && (shortened || !String.join(" ", words).equals(nameKey));
@@ -320,10 +412,19 @@ public final class StreetGazetteer {
         return -1;
     }
 
-    /** Present when all streets share one name (possibly several pieces or types of it). */
+    /**
+     * Present when all streets share one name: pieces or types of one street, or spellings of one name
+     * in the map data ("Mihail Sadoveanu", "Mihai Sadoveanu"). The longest street's name is returned.
+     */
     private static Optional<String> single(List<Street> list) {
-        Set<String> names = list.stream().map(Street::nameKey).collect(Collectors.toSet());
-        return names.size() == 1 ? Optional.of(names.iterator().next()) : Optional.empty();
+        Street longest = list.stream().max(Comparator.comparingDouble(Street::extentKm)).orElseThrow();
+        boolean one = list.stream().allMatch(s -> s.nameKey().equals(longest.nameKey())
+                || (sameName(s, longest) && s.point().kmTo(longest.point()) - s.extentKm() - longest.extentKm() <= SAME_STREET_KM));
+        return one ? Optional.of(longest.nameKey()) : Optional.empty();
+    }
+
+    static boolean sameName(Street a, Street b) {
+        return a.nameKey().equals(b.nameKey()) || Text.similarity(a.nameKey(), b.nameKey()) >= SAME_NAME;
     }
 
     /**
@@ -332,38 +433,66 @@ public final class StreetGazetteer {
      * decides if it is clearly closer to one of them, then the type the seller wrote; otherwise the name is
      * returned without a type or coordinates.
      */
-    private static Optional<Match> pick(List<Street> list, String type, GeoPoint center, boolean pinned, String method) {
+    private Optional<Match> pick(List<Street> list, String type, GeoPoint center, boolean pinned, String method) {
         if (single(list).isEmpty()) {
-            return Optional.empty();
+            if (!pinned) {
+                return Optional.empty();
+            }
+            // Different streets carry the name ("Буковина" is Strada Bucovina and Strada Bucovinei): the pin
+            // decides when it stands among the buildings of only one of them, or is clearly nearest to one.
+            List<Street> around = streetsAround(center, NEARBY_KM);
+            List<Street> inPlace = list.stream().filter(around::contains).toList();
+            if (!inPlace.isEmpty() && single(inPlace).isPresent()) {
+                list = inPlace;
+            } else {
+                List<Street> sorted = list.stream().sorted(Comparator.comparingDouble(s -> distanceKm(s, center))).toList();
+                Street first = sorted.getFirst();
+                double d1 = distanceKm(first, center);
+                double d2 = sorted.stream().filter(s -> !sameName(s, first))
+                        .mapToDouble(s -> distanceKm(s, center)).min().orElse(Double.MAX_VALUE);
+                if (d1 > 0.25 || d2 - d1 < 0.5) {
+                    return Optional.empty();
+                }
+                list = list.stream().filter(s -> sameName(s, first)).toList();
+            }
         }
-        Comparator<Street> byDistance = Comparator.comparingDouble(s -> distance(s, center));
+        Comparator<Street> byDistance = Comparator.comparingDouble(s -> distanceKm(s, center));
         List<Street> sorted = list.stream().sorted(byDistance).toList();
+        Street canonical = list.stream().max(Comparator.comparingDouble(Street::extentKm)).orElseThrow();
         Street nearest = sorted.getFirst();
         Set<String> types = list.stream().map(Street::type).collect(Collectors.toSet());
         if (types.size() == 1) {
-            return Optional.of(new Match(nearest.name(), nearest.type(), nearest, method));
+            return Optional.of(new Match(nameFor(nearest, canonical), nearest.type(), nearest, method));
         }
         if (pinned) {
-            double d1 = distance(nearest, center);
+            double d1 = distanceKm(nearest, center);
             double d2 = sorted.stream().filter(s -> !s.type().equals(nearest.type()))
-                    .mapToDouble(s -> distance(s, center)).min().orElse(Double.MAX_VALUE);
+                    .mapToDouble(s -> distanceKm(s, center)).min().orElse(Double.MAX_VALUE);
             if (d1 < 0.3 && d2 - d1 > 1.0) {
-                return Optional.of(new Match(nearest.name(), nearest.type(), nearest, method));
+                return Optional.of(new Match(nameFor(nearest, canonical), nearest.type(), nearest, method));
             }
         }
         if (type != null) {
             Optional<Street> sameType = sorted.stream().filter(s -> s.type().equals(type)).findFirst();
             if (sameType.isPresent()) {
-                return Optional.of(new Match(sameType.get().name(), type, sameType.get(), method));
+                return Optional.of(new Match(nameFor(sameType.get(), canonical), type, sameType.get(), method));
             }
         }
-        return Optional.of(new Match(nearest.name(), null, null, method));
+        return Optional.of(new Match(canonical.name(), null, null, method));
     }
 
-    /** Distance from a point to a street, roughly: to its centre minus its half-length. */
-    private static double distance(Street s, GeoPoint p) {
-        return Math.max(0, s.point().kmTo(p) - s.extentKm());
+    /**
+     * A street's own name, unless it is a spelling variant of the canonical one on the same physical street
+     * (within {@value #SAME_STREET_KM} km): a similar name elsewhere, in another village, is never borrowed.
+     */
+    private static String nameFor(Street street, Street canonical) {
+        if (street.nameKey().equals(canonical.nameKey())) {
+            return street.name();
+        }
+        boolean samePlace = street.point().kmTo(canonical.point()) - street.extentKm() - canonical.extentKm() <= SAME_STREET_KM;
+        return samePlace ? canonical.name() : street.name();
     }
+
 
     private List<Street> nearby(GeoPoint center, double radiusKm) {
         int cells = (int) Math.ceil(radiusKm / (CELL_DEG * 75)) + 1; // a cell is at least ~3.8 km wide here

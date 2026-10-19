@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import md.apartmentlens.scraper.crawl.CrawlService;
+import md.apartmentlens.scraper.crawl.DefaultPinReview;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
 import org.slf4j.Logger;
@@ -25,14 +26,16 @@ class CrawlScheduler {
 
     private final List<ListingSource> sources;
     private final CrawlService crawls;
+    private final DefaultPinReview pinReview;
     private final CrawlRunRepository runs;
     private final ScraperProperties properties;
     private final Clock clock;
 
-    CrawlScheduler(List<ListingSource> sources, CrawlService crawls, CrawlRunRepository runs,
-                   ScraperProperties properties, Clock clock) {
+    CrawlScheduler(List<ListingSource> sources, CrawlService crawls, DefaultPinReview pinReview,
+                   CrawlRunRepository runs, ScraperProperties properties, Clock clock) {
         this.sources = sources;
         this.crawls = crawls;
+        this.pinReview = pinReview;
         this.runs = runs;
         this.properties = properties;
         this.clock = clock;
@@ -60,7 +63,7 @@ class CrawlScheduler {
     synchronized void crawlAll() {
         for (ListingSource source : sources) {
             try {
-                crawls.crawl(source);
+                crawls.crawl(source).ifPresent(stats -> pinReview.review(source));
             } catch (RuntimeException e) {
                 log.error("{}: crawl failed: {}", source.code(), e.toString(), e);
             }

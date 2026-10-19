@@ -18,7 +18,8 @@ import md.apartmentlens.scraper.source.GeoPoint;
  * @param housingStock new_build or secondary
  * @param streetName official Romanian street name, without the type
  * @param streetMatch how the street was recognized: exact, alias, partial, fuzzy or unresolved
- * @param locationSource pin or street
+ * @param sellerPin the pin as the seller placed it, also when it is not used as the location
+ * @param locationSource pin, address, street or place
  * @param locationPrecision building, street, district or locality
  * @param phoneHashes keyed hashes of the +373 numbers
  * @param issues values that could not be read, with the reason
@@ -69,6 +70,7 @@ public record NormalizedListing(
         String streetMatch,
         String houseNumber,
         GeoPoint point,
+        GeoPoint sellerPin,
         String locationSource,
         String locationPrecision,
         List<byte[]> phoneHashes,
@@ -129,6 +131,7 @@ public record NormalizedListing(
         private String streetMatch;
         private String houseNumber;
         private GeoPoint point;
+        private GeoPoint sellerPin;
         private String locationSource;
         private String locationPrecision;
         private List<byte[]> phoneHashes = List.of();
@@ -365,6 +368,11 @@ public record NormalizedListing(
             return this;
         }
 
+        public Builder sellerPin(GeoPoint sellerPin) {
+            this.sellerPin = sellerPin;
+            return this;
+        }
+
         public Builder locationSource(String locationSource) {
             this.locationSource = locationSource;
             return this;
@@ -401,7 +409,7 @@ public record NormalizedListing(
         }
 
         public NormalizedListing build() {
-            return new NormalizedListing(propertyType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, priceAmount, priceCurrency, priceEur, pricePerM2Eur, priceNegotiable, downPayment, rooms, roomsOpenEnded, hasLivingRoom, areaTotalM2, areaLivingM2, areaKitchenM2, landAreaM2, floor, floorKind, floorsTotal, bathrooms, balconies, ceilingHeightM, housingStock, buildingMaterial, buildingSeries, condition, developer, parking, region, locality, district, regionCode, localityCode, districtCode, streetRaw, houseNumberRaw, streetType, streetName, streetMatch, houseNumber, point, locationSource, locationPrecision, phoneHashes, photoKeys, hasVideo, amenities, issues);
+            return new NormalizedListing(propertyType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, priceAmount, priceCurrency, priceEur, pricePerM2Eur, priceNegotiable, downPayment, rooms, roomsOpenEnded, hasLivingRoom, areaTotalM2, areaLivingM2, areaKitchenM2, landAreaM2, floor, floorKind, floorsTotal, bathrooms, balconies, ceilingHeightM, housingStock, buildingMaterial, buildingSeries, condition, developer, parking, region, locality, district, regionCode, localityCode, districtCode, streetRaw, houseNumberRaw, streetType, streetName, streetMatch, houseNumber, point, sellerPin, locationSource, locationPrecision, phoneHashes, photoKeys, hasVideo, amenities, issues);
         }
     }
 }

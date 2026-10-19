@@ -88,10 +88,12 @@ public class ListingRepository {
     }
 
     /** Columns that need an SQL expression around their parameter. */
-    private static final String SPECIAL_COLUMNS = "geom, phone_hashes, photo_keys, amenities, issues";
+    private static final String SPECIAL_COLUMNS = "geom, pin, phone_hashes, photo_keys, amenities, issues";
     private static final String GEOM_VALUE = "case when cast(:lat as double precision) is null then null else "
             + "st_setsrid(st_makepoint(cast(:lon as double precision), cast(:lat as double precision)), 4326)::geography end";
-    private static final String SPECIAL_VALUES = GEOM_VALUE + ", :phone_hashes, :photo_keys, :amenities, cast(:issues as jsonb)";
+    private static final String PIN_VALUE = GEOM_VALUE.replace(":lat", ":pin_lat").replace(":lon", ":pin_lon");
+    private static final String SPECIAL_VALUES = GEOM_VALUE + ", " + PIN_VALUE
+            + ", :phone_hashes, :photo_keys, :amenities, cast(:issues as jsonb)";
 
     private final JdbcClient jdbc;
     private final JsonMapper json;
@@ -144,7 +146,7 @@ public class ListingRepository {
                 .addValue("content_sha256", contentSha256)
                 .addValue("normalizer_version", normalizerVersion);
         String sets = COLUMNS.keySet().stream().map(c -> c + " = :" + c).collect(Collectors.joining(", "));
-        jdbc.sql("update ingest.listing set " + sets + ", geom = " + GEOM_VALUE
+        jdbc.sql("update ingest.listing set " + sets + ", geom = " + GEOM_VALUE + ", pin = " + PIN_VALUE
                         + ", phone_hashes = :phone_hashes, photo_keys = :photo_keys, amenities = :amenities, "
                         + "issues = cast(:issues as jsonb), content_sha256 = :content_sha256, "
                         + "normalizer_version = :normalizer_version, normalized_at = now(), "
@@ -224,11 +226,52 @@ public class ListingRepository {
                 .list();
     }
 
+    /** Ads whose seller's pin is one of these (see {@link md.apartmentlens.scraper.normalize.address.DefaultPins#key}). */
+    public List<Long> idsWithPin(java.util.Collection<Long> keys) {
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+        Long[] lats = keys.stream().map(k -> k >> 32).toArray(Long[]::new);
+        Long[] lons = keys.stream().map(k -> (long) (int) (k & 0xffffffffL)).toArray(Long[]::new);
+        MapSqlParameterSource p = new MapSqlParameterSource()
+                .addValue("lats", array("bigint", lats), Types.ARRAY)
+                .addValue("lons", array("bigint", lons), Types.ARRAY);
+        return jdbc.sql("""
+                        select id from ingest.listing
+                        where pin is not null
+                          and (round(st_y(pin::geometry) * 100000)::bigint, round(st_x(pin::geometry) * 100000)::bigint)
+                              in (select * from unnest(cast(:lats as bigint[]), cast(:lons as bigint[])))
+                        """)
+                .paramSource(p).query(Long.class).list();
+    }
+
+    /** The latest raw content of these ads. */
+    public List<Raw> rawOf(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        MapSqlParameterSource p = new MapSqlParameterSource()
+                .addValue("ids", array("bigint", ids.toArray(new Long[0])), Types.ARRAY);
+        return jdbc.sql("""
+                        select l.id, l.external_id, r.fetched_at, r.sha256, r.body_gzip
+                        from ingest.listing l
+                        join lateral (select fetched_at, sha256, body_gzip from ingest.listing_raw
+                                      where listing_id = l.id order by fetched_at desc limit 1) r on true
+                        where l.id = any(cast(:ids as bigint[])) order by l.id
+                        """)
+                .paramSource(p)
+                .query((rs, i) -> new Raw(rs.getLong(1), rs.getString(2), rs.getTimestamp(3).toInstant(), rs.getBytes(4),
+                        rs.getBytes(5)))
+                .list();
+    }
+
     private MapSqlParameterSource params(NormalizedListing l) {
         MapSqlParameterSource p = new MapSqlParameterSource();
         COLUMNS.forEach((column, getter) -> p.addValue(column, getter.apply(l)));
         p.addValue("lat", l.point() == null ? null : l.point().lat(), Types.DOUBLE);
         p.addValue("lon", l.point() == null ? null : l.point().lon(), Types.DOUBLE);
+        p.addValue("pin_lat", l.sellerPin() == null ? null : l.sellerPin().lat(), Types.DOUBLE);
+        p.addValue("pin_lon", l.sellerPin() == null ? null : l.sellerPin().lon(), Types.DOUBLE);
         p.addValue("phone_hashes", array("bytea", l.phoneHashes().toArray(new byte[0][])), Types.ARRAY);
         p.addValue("photo_keys", array("text", l.photoKeys().toArray(new String[0])), Types.ARRAY);
         p.addValue("amenities", array("text", l.amenities().toArray(new String[0])), Types.ARRAY);

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import md.apartmentlens.scraper.normalize.Issues;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer.Place;
+import md.apartmentlens.scraper.source.GeoPoint;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -19,7 +20,7 @@ class AddressNormalizerTest {
     @BeforeAll
     static void load() {
         places = PlaceGazetteer.load();
-        addresses = new AddressNormalizer(StreetGazetteer.load());
+        addresses = new AddressNormalizer(StreetGazetteer.load(), places);
         chisinau = places.settlement("Chișinău", "Chișinău mun.", null).orElseThrow();
     }
 
@@ -38,7 +39,7 @@ class AddressNormalizerTest {
             // Russian
             "'ул. Каля Ешилор', avenue, Ieșilor, alias",
             "'ул. Чеукарь', street, Ceucari, alias",
-            "'ул. Гренобле', street, Grenoble, fuzzy",
+            "'ул. Гренобле', street, Grenoble, alias",
             "'пр-т Мирча чел Бэтрын', boulevard, Mircea cel Bătrân, alias",
             // incomplete or abbreviated
             "'Bd. Ștefan cel Mare', boulevard, Ștefan cel Mare și Sfânt, alias",
@@ -60,12 +61,13 @@ class AddressNormalizerTest {
 
     @Test
     void sameNameDifferentTypes() {
-        // Chișinău has Bulevardul Mircea cel Bătrân and several Strada Mircea cel Bătrân in its suburbs.
+        // Bulevardul Mircea cel Bătrân is in Chișinău; the Strada Mircea cel Bătrân around it belong to
+        // suburbs (Codru, Stăuceni, ...), so an ad in Chișinău means the boulevard.
         assertThat(chisinau("bd. Mircea cel Bătrân", "4").streetType()).isEqualTo("boulevard");
-        var noType = chisinau("Mircea cel Bătrân", "4");
-        assertThat(noType.streetName()).isEqualTo("Mircea cel Bătrân");
-        assertThat(noType.streetType()).isNull();
-        assertThat(noType.street()).isNull(); // no coordinates: which street is meant is unknown
+        assertThat(chisinau("Mircea cel Bătrân", "4").streetType()).isEqualTo("boulevard");
+        // Where one locality has both, the type stays open without a pin: Strada and Bulevardul Dacia.
+        var noType = chisinau("Dacia", "4");
+        assertThat(noType.streetName()).isEqualTo("Dacia");
         // The seller's pin tells them apart: this one is on the boulevard in Ciocana.
         var pinned = addresses.normalize("Mircea cel Bătrân", "4", chisinau,
                 new md.apartmentlens.scraper.source.GeoPoint(47.0515, 28.8908), new Issues());
@@ -117,6 +119,69 @@ class AddressNormalizerTest {
         var a = addresses.normalize("-", ".", chisinau, null, issues);
         assertThat(a.streetName()).isNull();
         assertThat(a.houseNumber()).isNull();
+    }
+
+    AddressNormalizer.Address pinned(String street, String house, double lat, double lon) {
+        return addresses.normalize(street, house, chisinau, new GeoPoint(lat, lon), new Issues());
+    }
+
+    @Test
+    void thePinChoosesBetweenStreetsWithTheSameRussianName() {
+        // "Буковина" is the Russian name of both Strada Bucovina and Strada Bucovinei in Chișinău;
+        // these real 999.md pins stand on Strada Bucovina, in Ciocana.
+        assertThat(pinned("ул. Буковина", "5", 47.06907, 28.891363).streetName()).isEqualTo("Bucovina");
+        assertThat(pinned("ул. Буковина", "2", 47.067783, 28.883339).streetName()).isEqualTo("Bucovina");
+        // Without a pin nothing tells them apart: not guessed.
+        assertThat(chisinau("ул. Буковина", "5").streetMatch()).isEqualTo("unresolved");
+    }
+
+    @Test
+    void aNumberedLaneIsAnotherStreet() {
+        var a = pinned("ш. Мунчешть", "404", 46.981403, 28.8975);
+        assertThat(a.streetName()).isEqualTo("Muncești");
+        assertThat(a.streetType()).isEqualTo("highway");
+    }
+
+    @Test
+    void anExactTransliterationIsAnExactMatch() {
+        var a = pinned("ул. Яловень", "136/B", 47.003624, 28.77253);
+        assertThat(a.streetName()).isEqualTo("Ialoveni");
+        assertThat(a.streetMatch()).isIn("exact", "alias");
+    }
+
+    @Test
+    void theBuildingOfAnAddressComesFromTheMap() {
+        var a = pinned("bd. Dacia", "47/2", 46.9881, 28.85863);
+        assertThat(a.building()).isNotNull();
+        assertThat(chisinau("bd. Dacia", "9999").building()).isNull(); // a number the map does not have
+    }
+
+    @Test
+    void looserSpellingOnlyAmongTheBuildingsAroundThePin() {
+        StreetGazetteer streets = addresses.streets();
+        GeoPoint onBucovina = new GeoPoint(47.06907, 28.891363);
+        assertThat(streets.resolveAtPin("Bucovina", null, onBucovina)).hasValueSatisfying(
+                m -> assertThat(m.method()).isEqualTo("nearby"));
+        // A name unlike every street around the pin is not forced onto one of them.
+        assertThat(streets.resolveAtPin("Columna", null, onBucovina)).isEmpty();
+    }
+
+    @Test
+    void streetsOnTheCitysEdgeAreFoundEvenWhenTheyBelongToASuburb() {
+        // Sellers list Strada Regina Elisabeta (Durlești) as "Chișinău".
+        assertThat(chisinau("str. Regina Elisabeta", "4").streetMatch()).isEqualTo("exact");
+    }
+
+    @Test
+    void streetsOfNeighbouringVillagesAreNotUsedWithoutAPin() {
+        // Cricova has its own Strada Mihail Sadoveanu, inside Chișinău's search area; an ad in Chișinău
+        // gets Chișinău's street (in Ciocana), an ad in Cricova gets Cricova's.
+        var inChisinau = chisinau("str. Mihail Sadoveanu", "1");
+        assertThat(inChisinau.street().point().kmTo(new GeoPoint(47.0500, 28.8840))).isLessThan(1.0);
+        Place cricova = places.settlement("Cricova", "Chișinău mun.", null).orElseThrow();
+        var inCricova = addresses.normalize("str. Mihail Sadoveanu", "1", cricova, null, new Issues());
+        assertThat(inCricova.street().point().kmTo(cricova.point())).isLessThan(3.0);
+        assertThat(places.ownerOf(inCricova.street().point())).contains(cricova);
     }
 
     @Test

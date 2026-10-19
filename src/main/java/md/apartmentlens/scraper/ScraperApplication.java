@@ -3,6 +3,7 @@ package md.apartmentlens.scraper;
 import java.util.Arrays;
 import java.util.List;
 import md.apartmentlens.scraper.crawl.CrawlService;
+import md.apartmentlens.scraper.crawl.DefaultPinReview;
 import md.apartmentlens.scraper.crawl.RenormalizeService;
 import md.apartmentlens.scraper.source.ListingSource;
 import org.springframework.boot.ApplicationArguments;
@@ -39,12 +40,15 @@ public class ScraperApplication {
 
     @Bean
     ApplicationRunner commands(List<ListingSource> sources, CrawlService crawls, RenormalizeService renormalize,
-                               org.springframework.core.env.Environment env) {
+                               DefaultPinReview pinReview, org.springframework.core.env.Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
             switch (mode) {
-                case "crawl" -> sources.forEach(crawls::crawl);
-                case "renormalize" -> sources.forEach(s -> renormalize.renormalize(s, args.containsOption("all")));
+                case "crawl" -> sources.forEach(s -> crawls.crawl(s).ifPresent(stats -> pinReview.review(s)));
+                case "renormalize" -> sources.forEach(s -> {
+                    renormalize.renormalize(s, args.containsOption("all"));
+                    pinReview.review(s); // pins are stored by the step above
+                });
                 default -> {
                     // daemon: CrawlScheduler does the work
                 }
