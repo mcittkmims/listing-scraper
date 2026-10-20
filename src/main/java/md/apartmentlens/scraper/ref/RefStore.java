@@ -1,6 +1,7 @@
 package md.apartmentlens.scraper.ref;
 
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -67,7 +68,7 @@ public class RefStore {
                         """, batch, 5_000, (ps, a) -> {
             ps.setString(1, source);
             if (a.streetId() == null) {
-                ps.setNull(2, java.sql.Types.BIGINT);
+                ps.setNull(2, Types.BIGINT);
             } else {
                 ps.setLong(2, a.streetId());
             }

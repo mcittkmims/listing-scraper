@@ -2,6 +2,7 @@ package md.apartmentlens.scraper.ref;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,7 +52,7 @@ final class CadastreNames {
         if (!m.matches()) {
             return null;
         }
-        String kind = m.group(1).toLowerCase(java.util.Locale.ROOT);
+        String kind = m.group(1).toLowerCase(Locale.ROOT);
         return new Part(kind.equals("s") ? "sat" : kind.equals("îp") ? "ip" : kind, m.group(2).strip());
     }
 

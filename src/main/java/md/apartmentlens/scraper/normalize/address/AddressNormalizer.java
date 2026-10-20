@@ -3,7 +3,9 @@ package md.apartmentlens.scraper.normalize.address;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import md.apartmentlens.scraper.normalize.Issues;
@@ -57,7 +59,7 @@ public final class AddressNormalizer {
 
     private final StreetGazetteer streets;
     private final PlaceGazetteer places;
-    private final java.util.Map<Integer, Optional<Place>> owners = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<Integer, Optional<Place>> owners = new ConcurrentHashMap<>();
 
     public AddressNormalizer(StreetGazetteer streets, PlaceGazetteer places) {
         this.streets = streets;

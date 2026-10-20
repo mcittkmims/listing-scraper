@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import md.apartmentlens.scraper.source.GeoPoint;
@@ -163,10 +167,6 @@ public final class StreetGazetteer {
         return streets.size();
     }
 
-    public int addressCount() {
-        return addresses.size();
-    }
-
     /** The building with this house number on the street, from the map's address points. */
     public Optional<GeoPoint> address(Street street, String houseNumber) {
         return street == null ? Optional.empty() : addresses.find(street.index(), houseNumber);
@@ -214,7 +214,7 @@ public final class StreetGazetteer {
 
     /** Like {@link #resolve(String, String, GeoPoint, double, boolean)}, among the streets {@code allowed} accepts. */
     public Optional<Match> resolve(String name, String type, GeoPoint center, double radiusKm, boolean pinned,
-                                   java.util.function.Predicate<Street> allowed) {
+                                   Predicate<Street> allowed) {
         Optional<Match> found = resolveName(name, type, center, radiusKm, pinned, allowed);
         if (found.isEmpty() && name != null && INITIAL_IE.matcher(name).find()) {
             // Russian writes Эминеску; sellers often type "Еминеску".
@@ -223,10 +223,10 @@ public final class StreetGazetteer {
         return found;
     }
 
-    private static final java.util.regex.Pattern INITIAL_IE = java.util.regex.Pattern.compile("(^|[\\s.])[Ее]");
+    private static final Pattern INITIAL_IE = Pattern.compile("(^|[\\s.])[Ее]");
 
     private Optional<Match> resolveName(String name, String type, GeoPoint center, double radiusKm, boolean pinned,
-                                        java.util.function.Predicate<Street> allowed) {
+                                        Predicate<Street> allowed) {
         String key = Text.fold(name);
         if (key.isEmpty() || center == null) {
             return Optional.empty();
@@ -382,9 +382,9 @@ public final class StreetGazetteer {
     }
 
     /** The numbers in a name ("2-й пер. Мицкевича", "Linia 8"); names with different numbers are other streets. */
-    static java.util.Set<String> numbers(String key) {
-        java.util.Set<String> out = new java.util.TreeSet<>();
-        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\d+").matcher(key);
+    static Set<String> numbers(String key) {
+        Set<String> out = new TreeSet<>();
+        Matcher m = Pattern.compile("\\d+").matcher(key);
         while (m.find()) {
             out.add(m.group().replaceFirst("^0+(?=\\d)", ""));
         }
@@ -399,8 +399,8 @@ public final class StreetGazetteer {
         if (words.length > 1 && words[words.length - 1].matches("\\d+") && !street.matches(".*\\d$")) {
             key = String.join(" ", Arrays.copyOf(words, words.length - 1));
         }
-        java.util.Set<String> mine = numbers(key);
-        java.util.Set<String> theirs = numbers(street);
+        Set<String> mine = numbers(key);
+        Set<String> theirs = numbers(street);
         return !mine.isEmpty() && !theirs.isEmpty() && !mine.equals(theirs)
                 || !mine.isEmpty() && theirs.isEmpty() && mine.stream().allMatch(n -> n.length() <= 2)
                 || mine.isEmpty() && !theirs.isEmpty() && theirs.stream().allMatch(n -> n.length() <= 2);
@@ -655,8 +655,4 @@ public final class StreetGazetteer {
         return ((long) lat << 32) ^ (lon & 0xffffffffL);
     }
 
-    /** Every street key, for tests. */
-    Map<String, List<Street>> index() {
-        return byKey;
-    }
 }

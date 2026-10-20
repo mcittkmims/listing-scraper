@@ -1,5 +1,7 @@
 package md.apartmentlens.scraper.normalize.address;
 
+import java.util.Arrays;
+
 /**
  * Street lines in the encoded polyline format (precision 1e-5, about a metre): compact text for the
  * gazetteer files. Several parts are separated by a space, which the encoding never uses (it writes
@@ -54,7 +56,7 @@ public final class Polyline {
                 buf[n++] = lat / 1e5f;
                 buf[n++] = lon / 1e5f;
             }
-            parts[p] = java.util.Arrays.copyOf(buf, n);
+            parts[p] = Arrays.copyOf(buf, n);
         }
         return parts;
     }

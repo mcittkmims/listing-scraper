@@ -1,5 +1,6 @@
 package md.apartmentlens.scraper.store;
 
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -30,7 +31,7 @@ public class CrawlRunRepository {
                         update ingest.crawl_run set status = 'failed', finished_at = now(), error = 'abandoned'
                         where source_id = ? and status = 'running' and started_at < ?
                         """)
-                .params(sourceId, java.sql.Timestamp.from(Instant.now().minus(staleAfter))).update();
+                .params(sourceId, Timestamp.from(Instant.now().minus(staleAfter))).update();
         try {
             return Optional.of(jdbc.sql("insert into ingest.crawl_run (source_id) values (?) returning id")
                     .param(sourceId).query(Long.class).single());
@@ -41,7 +42,7 @@ public class CrawlRunRepository {
 
     public Instant startedAt(long runId) {
         return jdbc.sql("select started_at from ingest.crawl_run where id = ?").param(runId)
-                .query(java.sql.Timestamp.class).single().toInstant();
+                .query(Timestamp.class).single().toInstant();
     }
 
     public void finish(long runId, String status, CrawlStats stats, String error) {
@@ -71,6 +72,6 @@ public class CrawlRunRepository {
                         select started_at from ingest.crawl_run where source_id = ? and status in ('completed', 'partial')
                         order by started_at desc limit 1
                         """)
-                .param(sourceId).query(java.sql.Timestamp.class).optional().map(java.sql.Timestamp::toInstant);
+                .param(sourceId).query(Timestamp.class).optional().map(Timestamp::toInstant);
     }
 }

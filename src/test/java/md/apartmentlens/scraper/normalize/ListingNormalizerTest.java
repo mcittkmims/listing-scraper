@@ -3,10 +3,10 @@ package md.apartmentlens.scraper.normalize;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import md.apartmentlens.scraper.Fixtures;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
+import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;

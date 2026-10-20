@@ -12,17 +12,18 @@ import md.apartmentlens.scraper.normalize.PriceNormalizer;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
+import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.ref.CadastreImporter;
 import md.apartmentlens.scraper.ref.MapMdImporter;
 import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.ref.RefStore;
-import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
 import md.apartmentlens.scraper.store.DefaultPinRegistry;
 import md.apartmentlens.scraper.store.ExchangeRateRepository;
 import md.apartmentlens.scraper.store.ListingRepository;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,11 +58,9 @@ class ScraperConfiguration {
     }
 
     @Bean
-    ExchangeRateService exchangeRateService(ExchangeRateRepository repository) {
+    ExchangeRateService exchangeRateService(ExchangeRateRepository repository, ScraperProperties p) {
         // BNM gets its own client: a rate request must not wait behind the crawl's pauses.
-        PoliteHttpClient http = new PoliteHttpClient(
-                "apartment-lens-scraper/1.0 (+https://github.com/mcittkmims/apartment-lens)",
-                Duration.ofSeconds(1), 4, Duration.ofSeconds(30));
+        PoliteHttpClient http = new PoliteHttpClient(p.userAgent(), Duration.ofSeconds(1), 4, Duration.ofSeconds(30));
         return new ExchangeRateService(repository, new BnmRateClient(http));
     }
 
@@ -71,10 +70,9 @@ class ScraperConfiguration {
     }
 
     @Bean
-    CadastreImporter cadastreImporter(JsonMapper json, RefStore store, TransactionTemplate tx, Clock clock) {
-        PoliteHttpClient http = new PoliteHttpClient(
-                "apartment-lens-scraper/1.0 (+https://github.com/mcittkmims/apartment-lens)",
-                Duration.ofSeconds(1), 6, Duration.ofSeconds(180));
+    CadastreImporter cadastreImporter(JsonMapper json, RefStore store, TransactionTemplate tx, Clock clock,
+                                      ScraperProperties p) {
+        PoliteHttpClient http = new PoliteHttpClient(p.userAgent(), Duration.ofSeconds(1), 6, Duration.ofSeconds(180));
         return new CadastreImporter(http, json, store, tx, clock);
     }
 
@@ -121,7 +119,7 @@ class ScraperConfiguration {
         if (ref.available()) {
             return ref.load();
         }
-        org.slf4j.LoggerFactory.getLogger(ScraperConfiguration.class)
+        LoggerFactory.getLogger(ScraperConfiguration.class)
                 .warn("ref tables are empty; using the bundled gazetteer files (run import-ref to load them)");
         return new RefGazetteer.Loaded(StreetGazetteer.load(), PlaceGazetteer.load());
     }

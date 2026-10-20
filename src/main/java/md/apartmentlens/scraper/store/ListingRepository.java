@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import md.apartmentlens.scraper.normalize.NormalizedListing;
+import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.core.support.AbstractSqlTypeValue;
@@ -227,8 +229,8 @@ public class ListingRepository {
                 .list();
     }
 
-    /** Ads whose seller's pin is one of these (see {@link md.apartmentlens.scraper.normalize.address.DefaultPins#key}). */
-    public List<Long> idsWithPin(java.util.Collection<Long> keys) {
+    /** Ads whose seller's pin is one of these (see {@link DefaultPins#key}). */
+    public List<Long> idsWithPin(Collection<Long> keys) {
         if (keys.isEmpty()) {
             return List.of();
         }

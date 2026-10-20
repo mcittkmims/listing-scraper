@@ -2,6 +2,7 @@ package md.apartmentlens.scraper.ref;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,24 +10,27 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 import md.apartmentlens.scraper.normalize.address.AddressIndex;
 import md.apartmentlens.scraper.normalize.address.HouseNumbers;
-import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer.Place;
+import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.Polyline;
-import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer.Street;
+import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetTypes;
 import md.apartmentlens.scraper.source.GeoPoint;
 import md.apartmentlens.scraper.text.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 
 /**
  * Builds the normalizer's street and place lists from the {@code ref} tables: each cadastre street with
@@ -158,7 +162,7 @@ public final class RefGazetteer {
         float[] lon = new float[street.length];
         int[] n = {0};
         Map<String, String> clean = new HashMap<>();
-        Set<String> seen = new java.util.HashSet<>();
+        Set<String> seen = new HashSet<>();
         jdbc.query("""
                         select coalesce(s.same_as, s.id), a.number, st_y(a.geom::geometry), st_x(a.geom::geometry)
                         from ref.address_point a join ref.street s on s.id = a.street_id
@@ -227,7 +231,7 @@ public final class RefGazetteer {
                                    select 1 from ref.locality l where l.source = 'cadastre'
                                      and lower(unaccent(l.name)) = lower(unaccent(coalesce(p.name_ro, p.name)))
                                      and st_dwithin(l.point, p.geom::geography, 8000)))
-                        """, (org.springframework.jdbc.core.RowCallbackHandler) rs -> out.add(new Place(
+                        """, (RowCallbackHandler) rs -> out.add(new Place(
                 Text.fixDiacritics(rs.getString(1)), rs.getString(2), rs.getString(3),
                 new GeoPoint(rs.getDouble(4), rs.getDouble(5)), rs.getInt(6))));
         return out;
@@ -241,10 +245,10 @@ public final class RefGazetteer {
             w.write("# Streets of Moldova. " + credit + ".\n");
             w.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\tcity\tline\tpin_names\n");
             for (Street s : g.streets().streets()) {
-                w.write(String.join("\t", s.type(), s.nameRo(), s.nameRu(), String.join("|", aliasesOf(s)),
-                        String.format(java.util.Locale.ROOT, "%.6f", s.point().lat()),
-                        String.format(java.util.Locale.ROOT, "%.6f", s.point().lon()),
-                        String.format(java.util.Locale.ROOT, "%.2f", s.extentKm()), "0", s.city(), Polyline.encode(s.line()),
+                w.write(String.join("\t", s.type(), s.nameRo(), s.nameRu(), String.join("|", s.aliasNames()),
+                        String.format(Locale.ROOT, "%.6f", s.point().lat()),
+                        String.format(Locale.ROOT, "%.6f", s.point().lon()),
+                        String.format(Locale.ROOT, "%.2f", s.extentKm()), "0", s.city(), Polyline.encode(s.line()),
                         String.join("|", s.pinNames())));
                 w.write('\n');
             }
@@ -255,9 +259,9 @@ public final class RefGazetteer {
             w.write("street\tnumber\tlat\tlon\n");
             g.streets().addressIndex().forEach((street, number, lat, lon) -> {
                 try {
-                    w.write(street + "\t" + number + "\t" + String.format(java.util.Locale.ROOT, "%.5f\t%.5f", lat, lon) + "\n");
+                    w.write(street + "\t" + number + "\t" + String.format(Locale.ROOT, "%.5f\t%.5f", lat, lon) + "\n");
                 } catch (IOException e) {
-                    throw new java.io.UncheckedIOException(e);
+                    throw new UncheckedIOException(e);
                 }
             });
         }
@@ -266,16 +270,11 @@ public final class RefGazetteer {
             w.write("name_ro\tname_ru\tplace\tlat\tlon\tpopulation\n");
             for (Place p : g.places().places()) {
                 w.write(String.join("\t", p.nameRo(), p.nameRu(), p.type(),
-                        String.format(java.util.Locale.ROOT, "%.7f", p.point().lat()),
-                        String.format(java.util.Locale.ROOT, "%.7f", p.point().lon()),
+                        String.format(Locale.ROOT, "%.7f", p.point().lat()),
+                        String.format(Locale.ROOT, "%.7f", p.point().lon()),
                         p.population() == 0 ? "" : String.valueOf(p.population())) + "\n");
             }
         }
-    }
-
-    /** The original spellings kept for a street: what StreetGazetteer.street folded into its alias keys. */
-    private static List<String> aliasesOf(Street s) {
-        return s.aliasNames();
     }
 
     private static Writer gzipWriter(Path file) throws IOException {

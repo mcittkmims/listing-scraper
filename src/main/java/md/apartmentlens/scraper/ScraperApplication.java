@@ -1,10 +1,16 @@
 package md.apartmentlens.scraper;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import md.apartmentlens.scraper.crawl.CrawlService;
 import md.apartmentlens.scraper.crawl.DefaultPinReview;
 import md.apartmentlens.scraper.crawl.RenormalizeService;
+import md.apartmentlens.scraper.ref.CadastreImporter;
+import md.apartmentlens.scraper.ref.MapMdImporter;
+import md.apartmentlens.scraper.ref.OsmImporter;
+import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.source.ListingSource;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -12,6 +18,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 /**
  * The scraper service. Without arguments it runs as a service and crawls on its schedule. Commands:
@@ -19,9 +26,10 @@ import org.springframework.context.annotation.Bean;
  *   <li>{@code crawl}: one pass over every source, then exit</li>
  *   <li>{@code renormalize}: normalize ads stored by an older normalizer again, then exit;
  *       {@code renormalize --all} does every ad</li>
- *   <li>{@code import-ref [cadastre] [osm] [mapmd]}: load the reference data of streets and addresses, then
- *       exit; OpenStreetMap needs its staging tables first (database/osm), map.md is read only when named</li>
- *   <li>{@code export-gazetteer DIR}: write the ref tables as the bundled gazetteer files</li>
+ *   <li>{@code import-ref [cadastre] [osm] [mapmd | mapmd-link]}: load the reference data of streets and
+ *       addresses, then exit. Without arguments: cadastre and OpenStreetMap (which needs its staging tables,
+ *       see database/osm). map.md is read only when named; {@code mapmd-link} links its stored streets again.</li>
+ *   <li>{@code export-gazetteer DIR [--with-mapmd]}: write the ref tables as the bundled gazetteer files</li>
  * </ul>
  */
 @SpringBootApplication
@@ -30,12 +38,12 @@ public class ScraperApplication {
     public static void main(String[] args) {
         String command = Arrays.stream(args).filter(a -> !a.startsWith("--")).findFirst().orElse("daemon");
         if (!List.of("daemon", "crawl", "renormalize", "import-ref", "export-gazetteer").contains(command)) {
-            System.err.println("unknown command '" + command
-                    + "'; use crawl, renormalize [--all], import-ref [cadastre] [osm] [mapmd], or no command");
+            System.err.println("unknown command '" + command + "'; use crawl, renormalize [--all], "
+                    + "import-ref [cadastre] [osm] [mapmd | mapmd-link], export-gazetteer DIR, or no command");
             System.exit(2);
         }
         SpringApplication app = new SpringApplication(ScraperApplication.class);
-        app.setDefaultProperties(java.util.Map.of("scraper.mode", command));
+        app.setDefaultProperties(Map.of("scraper.mode", command));
         ConfigurableApplicationContext context = app.run(args);
         if (!command.equals("daemon")) {
             System.exit(SpringApplication.exit(context));
@@ -44,11 +52,8 @@ public class ScraperApplication {
 
     @Bean
     ApplicationRunner commands(List<ListingSource> sources, CrawlService crawls, RenormalizeService renormalize,
-                               DefaultPinReview pinReview, md.apartmentlens.scraper.ref.CadastreImporter cadastre,
-                               md.apartmentlens.scraper.ref.OsmImporter osm,
-                               md.apartmentlens.scraper.ref.MapMdImporter mapmd,
-                               md.apartmentlens.scraper.ref.RefGazetteer refGazetteer,
-                               org.springframework.core.env.Environment env) {
+                               DefaultPinReview pinReview, CadastreImporter cadastre, OsmImporter osm,
+                               MapMdImporter mapmd, RefGazetteer refGazetteer, Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
             switch (mode) {
@@ -73,9 +78,9 @@ public class ScraperApplication {
                 }
                 case "export-gazetteer" -> {
                     List<String> rest = args.getNonOptionArgs();
-                    java.nio.file.Path dir = java.nio.file.Path.of(rest.size() > 1 ? rest.get(1) : "gazetteer");
+                    Path dir = Path.of(rest.size() > 1 ? rest.get(1) : "gazetteer");
                     // map.md names stay out of the files (they are committed publicly) unless asked for.
-                    md.apartmentlens.scraper.ref.RefGazetteer.export(refGazetteer.load(args.containsOption("with-mapmd")), dir);
+                    RefGazetteer.export(refGazetteer.load(args.containsOption("with-mapmd")), dir);
                 }
                 default -> {
                     // daemon: CrawlScheduler does the work

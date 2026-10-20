@@ -21,7 +21,6 @@ import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
-import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;

@@ -2,6 +2,7 @@ package md.apartmentlens.scraper.ref;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -60,7 +61,7 @@ public class MapMdImporter {
 
     public Map<String, Integer> run() throws IOException {
         List<String> ids = new ArrayList<>();
-        Matcher m = LOC.matcher(new String(http.get(SITEMAP, Map.of()).body(), java.nio.charset.StandardCharsets.UTF_8));
+        Matcher m = LOC.matcher(new String(http.get(SITEMAP, Map.of()).body(), StandardCharsets.UTF_8));
         while (m.find()) {
             ids.add(m.group(1));
         }
@@ -99,7 +100,7 @@ public class MapMdImporter {
 
     Page page(String id) throws IOException {
         String html = new String(http.get(URI.create("https://map.md/ro/street/" + id), Map.of()).body(),
-                java.nio.charset.StandardCharsets.UTF_8);
+                StandardCharsets.UTF_8);
         Matcher m = NEXT_DATA.matcher(html);
         if (!m.find()) {
             throw new IOException("no page data");
