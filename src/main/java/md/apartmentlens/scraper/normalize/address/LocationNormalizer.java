@@ -73,6 +73,14 @@ public final class LocationNormalizer {
     public Location locate(GeoPoint pin, AddressNormalizer.Address address, Place district, Place locality,
                            Issues issues) {
         GeoPoint building = address.building();
+        if (pin != null && defaultPins.isStreetLevel(pin)) {
+            // 999.md found the street but not the house number: the building of the address, if known.
+            issues.add("pin", pin.lat() + "," + pin.lon(), "street_level");
+            if (building != null) {
+                return new Location(building, "address", "building");
+            }
+            return new Location(pin, "pin", "street");
+        }
         if (pin != null) {
             String precision = address.houseNumber() != null ? "building" : "street";
             if (building != null && pin.kmTo(building) > PIN_TO_BUILDING_KM) {

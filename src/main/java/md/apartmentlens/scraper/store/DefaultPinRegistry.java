@@ -8,16 +8,20 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
  * Default pins found in the stored ads: one coordinate (to a metre) used by at least {@value #MIN_ADS}
- * active ads on at least {@value #MIN_STREETS} different streets, none of which has half of them.
- * A real building is pinned on one or two streets; a residential complex has one main street.
+ * active ads on at least {@value #MIN_STREETS} different streets, none of which has half of them (a real
+ * building is pinned on one or two streets); and street-level pins, one coordinate used for at least
+ * {@value #MIN_NUMBERS} different house numbers of the same street.
  */
 public class DefaultPinRegistry implements DefaultPins {
 
     static final int MIN_ADS = 5;
     static final int MIN_STREETS = 3;
 
+    static final int MIN_NUMBERS = 3;
+
     private final JdbcClient jdbc;
     private volatile Set<Long> keys = Set.of();
+    private volatile Set<Long> streetKeys = Set.of();
 
     public DefaultPinRegistry(JdbcClient jdbc) {
         this.jdbc = jdbc;
@@ -28,8 +32,17 @@ public class DefaultPinRegistry implements DefaultPins {
         return keys.contains(DefaultPins.key(pin));
     }
 
+    @Override
+    public boolean isStreetLevel(GeoPoint pin) {
+        return streetKeys.contains(DefaultPins.key(pin));
+    }
+
     public int size() {
         return keys.size();
+    }
+
+    public int streetLevelSize() {
+        return streetKeys.size();
     }
 
     /** Reloads the set from the database; returns the pins that became or stopped being default. */
@@ -48,12 +61,35 @@ public class DefaultPinRegistry implements DefaultPins {
                 .params(MIN_ADS, MIN_STREETS)
                 .query((rs, i) -> (rs.getLong(1) << 32) ^ (rs.getLong(2) & 0xffffffffL))
                 .list());
-        Set<Long> changed = new HashSet<>(fresh);
-        changed.addAll(keys);
-        Set<Long> both = new HashSet<>(fresh);
-        both.retainAll(keys);
-        changed.removeAll(both);
+        // One point for at least MIN_NUMBERS different house numbers of one street (12/2 and 12/5 are one building).
+        Set<Long> street = new HashSet<>(jdbc.sql("""
+                        with p as (
+                            select round(st_y(pin::geometry) * 100000)::bigint as lat,
+                                   round(st_x(pin::geometry) * 100000)::bigint as lon,
+                                   street_name, substring(house_number from '^\\d+') as base
+                            from ingest.listing
+                            where pin is not null and status = 'active' and street_name is not null
+                              and street_match not in ('from_pin', 'unresolved'))
+                        select lat, lon from p group by lat, lon, street_name
+                        having count(distinct coalesce(base, '')) >= ?
+                        """)
+                .param(MIN_NUMBERS)
+                .query((rs, i) -> (rs.getLong(1) << 32) ^ (rs.getLong(2) & 0xffffffffL))
+                .list());
+        street.removeAll(fresh);
+        Set<Long> changed = symmetricDifference(fresh, keys);
+        changed.addAll(symmetricDifference(street, streetKeys));
         keys = Set.copyOf(fresh);
+        streetKeys = Set.copyOf(street);
         return changed;
+    }
+
+    private static Set<Long> symmetricDifference(Set<Long> a, Set<Long> b) {
+        Set<Long> out = new HashSet<>(a);
+        out.addAll(b);
+        Set<Long> both = new HashSet<>(a);
+        both.retainAll(b);
+        out.removeAll(both);
+        return out;
     }
 }

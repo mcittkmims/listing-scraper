@@ -33,7 +33,7 @@ public class DefaultPinReview {
         }
         List<Long> ids = listings.idsWithPin(changed);
         int done = renormalize.renormalize(source, ids);
-        log.info("{}: {} default pins now known ({} changed); {} ads on them normalized again", source.code(),
-                registry.size(), changed.size(), done);
+        log.info("{}: {} default and {} street-level pins now known ({} changed); {} ads on them normalized again",
+                source.code(), registry.size(), registry.streetLevelSize(), changed.size(), done);
     }
 }

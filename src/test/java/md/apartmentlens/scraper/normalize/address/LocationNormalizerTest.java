@@ -52,6 +52,28 @@ class LocationNormalizerTest {
     }
 
     @Test
+    void aPinThatOnlyShowsTheStreet() {
+        GeoPoint streetPin = new GeoPoint(46.98810, 28.85863);
+        LocationNormalizer withStreetPins = new LocationNormalizer(STREETS, new DefaultPins() {
+            @Override
+            public boolean isDefault(GeoPoint pin) {
+                return false;
+            }
+
+            @Override
+            public boolean isStreetLevel(GeoPoint pin) {
+                return pin.equals(streetPin);
+            }
+        });
+        GeoPoint building = new GeoPoint(46.9850, 28.8600);
+        var known = new AddressNormalizer.Address("boulevard", "Dacia", "exact", "47/2", null, building);
+        assertThat(withStreetPins.locate(streetPin, known, null, chisinau, new Issues()))
+                .isEqualTo(new LocationNormalizer.Location(building, "address", "building"));
+        var unknown = new AddressNormalizer.Address("boulevard", "Dacia", "exact", "999", null, null);
+        assertThat(withStreetPins.locate(streetPin, unknown, null, chisinau, new Issues()).precision()).isEqualTo("street");
+    }
+
+    @Test
     void precision() {
         GeoPoint pin = new GeoPoint(47.0581, 28.8480);
         var withNumber = new AddressNormalizer.Address("street", "Ceucari", "exact", "1", null, null);
