@@ -263,5 +263,6 @@ class AddressNormalizerTest {
         assertThat(PlaceGazetteer.placeKey("Ghindești (sat)")).isEqualTo("ghindesti");
         assertThat(PlaceGazetteer.placeKey("Catranîc, loc.st.c.f.")).isEqualTo("catranac");
         assertThat(places.settlement("Dnestrovsk", "Slobozia", null)).isPresent();
+        assertThat(places.settlement("Jăvreni", "Criuleni", null)).hasValueSatisfying(p -> assertThat(p.nameRo()).isEqualTo("Jevreni"));
     }
 }

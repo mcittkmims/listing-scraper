@@ -172,6 +172,9 @@ public final class PlaceGazetteer {
         if (candidates.isEmpty()) {
             candidates = similarSettlements(placeKey(localityLabel));
         }
+        if (candidates.isEmpty() && regionLabel != null) {
+            candidates = similarInRegion(placeKey(localityLabel), regionLabel);
+        }
         if (candidates.isEmpty()) {
             return Optional.empty();
         }
@@ -210,6 +213,35 @@ public final class PlaceGazetteer {
             }
         }
         return Optional.ofNullable(best);
+    }
+
+    /**
+     * A settlement spelled differently ("Jăvreni" for Jevreni) within 40 km of the seat of the ad's region:
+     * there a looser similarity (0.8) is safe, as the region leaves only a few dozen villages.
+     */
+    private List<Place> similarInRegion(String key, String regionLabel) {
+        Optional<Place> seat = settlements.getOrDefault(placeKey(regionLabel), List.of()).stream()
+                .min(Comparator.comparingInt(Place::rank).thenComparing(p -> -p.population()));
+        if (seat.isEmpty() || key.length() < 5) {
+            return List.of();
+        }
+        Place best = null;
+        double bestScore = 0;
+        double second = 0;
+        for (Place p : allSettlements) {
+            if (p.point().kmTo(seat.get().point()) > 40) {
+                continue;
+            }
+            double sc = Text.similarity(key, Text.fold(p.nameRo()));
+            if (sc > bestScore) {
+                second = bestScore;
+                bestScore = sc;
+                best = p;
+            } else if (sc > second) {
+                second = sc;
+            }
+        }
+        return best != null && bestScore >= 0.8 && second < bestScore - 0.1 ? List.of(best) : List.of();
     }
 
     /** The settlement with exactly this name (no spelling tolerance) nearest to a point. */
