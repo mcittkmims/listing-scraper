@@ -134,7 +134,7 @@ public class MapMdImporter {
         return new Page(id, type, nameRo, nameRu, List.copyOf(tags), geoJson);
     }
 
-    /** The village of the nearest cadastre street within 300 m, and the cadastre street it is. */
+    /** The village of the nearest cadastre street within 300 m, and the street it is. */
     private void locateAndLink() {
         jdbc.sql("""
                         update ref.street s set locality = (
@@ -143,17 +143,65 @@ public class MapMdImporter {
                             order by c.geom::geometry <-> s.geom::geometry limit 1)
                         where s.source = 'mapmd'
                         """).update();
+        link();
+    }
+
+    /**
+     * Links each map.md street to the street it is, from the cadastre or (where the cadastre has none, as on
+     * the left bank) OpenStreetMap: it runs along that street for at least half its length (within 30 m, so
+     * crossing streets do not count) with a similar Romanian or Russian name, or lies almost entirely along
+     * exactly one street whatever its name (a translation). map.md's names then add to that street instead
+     * of making a second one.
+     *
+     * @return the number of map.md streets linked
+     */
+    public int link() {
+        jdbc.sql("update ref.street set same_as = null, link_basis = null where source = 'mapmd'").update();
         jdbc.sql("""
-                        update ref.street o set same_as = (
-                            select c.id from ref.street c
-                            where c.source = 'cadastre' and st_dwithin(c.geom, o.geom, 60)
-                              and (lower(unaccent(c.name_ro)) = lower(unaccent(o.name_ro))
-                                   or similarity(lower(unaccent(c.name_ro)), lower(unaccent(o.name_ro))) >= 0.6)
-                            order by similarity(lower(unaccent(c.name_ro)), lower(unaccent(o.name_ro))) desc,
-                                     c.geom::geometry <-> o.geom::geometry
-                            limit 1)
-                        where o.source = 'mapmd' and o.name_ro <> ''
+                        update ref.street m set same_as = x.target, link_basis = 'name'
+                        from (
+                            select m.id, (
+                                select c.id from ref.street c
+                                where c.source in ('cadastre', 'osm') and c.same_as is null
+                                  and st_dwithin(c.geom, m.geom, 60)
+                                  and greatest(
+                                        case when m.name_ro <> '' and c.name_ro <> ''
+                                             then similarity(lower(unaccent(c.name_ro)), lower(unaccent(m.name_ro))) else 0 end,
+                                        case when m.name_ru <> '' then greatest(
+                                             case when c.name_ru <> '' then similarity(lower(c.name_ru), lower(m.name_ru)) else 0 end,
+                                             coalesce((select max(similarity(lower(o.name_ru), lower(m.name_ru)))
+                                                       from ref.street o where o.same_as = c.id and o.name_ru <> ''), 0))
+                                        else 0 end) >= 0.6
+                                  and st_length(st_intersection(st_buffer(st_transform(c.geom::geometry, 4026), 30),
+                                                                st_transform(m.geom::geometry, 4026)))
+                                      >= 0.5 * st_length(st_transform(m.geom::geometry, 4026))
+                                order by c.source = 'cadastre' desc, c.geom::geometry <-> m.geom::geometry
+                                limit 1) as target
+                            from ref.street m where m.source = 'mapmd'
+                        ) x
+                        where m.id = x.id and x.target is not null
                         """).update();
+        // Same line, different names: a translation ("Победы" for Strada Biruinței, "Садовая" for Livezilor).
+        // Linked only when the map.md street lies almost entirely along exactly one street.
+        jdbc.sql("""
+                        update ref.street m set same_as = x.target, link_basis = 'line'
+                        from (
+                            select m.id, min(c.id) as target
+                            from ref.street m join ref.street c
+                              on c.source in ('cadastre', 'osm') and c.same_as is null and st_dwithin(c.geom, m.geom, 20)
+                            where m.source = 'mapmd' and m.same_as is null
+                              and st_length(st_intersection(st_buffer(st_transform(c.geom::geometry, 4026), 20),
+                                                            st_transform(m.geom::geometry, 4026)))
+                                  >= 0.8 * st_length(st_transform(m.geom::geometry, 4026))
+                              and st_length(st_transform(m.geom::geometry, 4026)) >= 50
+                            group by m.id having count(*) = 1
+                        ) x
+                        where m.id = x.id
+                        """).update();
+        int linked = jdbc.sql("select count(*) from ref.street where source = 'mapmd' and same_as is not null")
+                .query(Integer.class).single();
+        log.info("map.md streets linked to the street they are: {}", linked);
+        return linked;
     }
 
     private static String text(JsonNode n) {

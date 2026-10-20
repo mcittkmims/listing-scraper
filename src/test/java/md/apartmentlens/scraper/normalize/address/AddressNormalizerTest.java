@@ -229,6 +229,15 @@ class AddressNormalizerTest {
     }
 
     @Test
+    void namesWithDifferentNumbersAreDifferentStreets() {
+        assertThat(StreetGazetteer.numbers("2 per mitkevicha")).containsExactly("2");
+        var lane = chisinau("2 пер. Мицкевича", "1");
+        assertThat(lane.streetName()).doesNotContain("1-й");
+        var ciocarliei = chisinau("str-la 2 Ciocârliei", "1");
+        assertThat(ciocarliei.streetName()).doesNotStartWith("1 ");
+    }
+
+    @Test
     void localityLabels() {
         assertThat(places.settlement("Bender/Tighina", null, null)).isPresent();
         assertThat(PlaceGazetteer.placeKey("Chișinău mun.")).isEqualTo("chisinau");

@@ -295,7 +295,7 @@ public class OsmImporter {
      */
     private int linkToCadastre() {
         jdbc.sql("""
-                        update ref.street o set same_as = (
+                        update ref.street o set link_basis = 'name', same_as = (
                             select c.id from ref.street c
                             where c.source = 'cadastre' and st_dwithin(c.geom, o.geom, 60)
                               and (lower(unaccent(c.name_ro)) = lower(unaccent(o.name_ro))

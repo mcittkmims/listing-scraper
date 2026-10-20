@@ -68,9 +68,19 @@ public final class RefGazetteer {
         long start = System.nanoTime();
         // Names of the same street in other sources, by the cadastre street they belong to.
         Map<Long, List<String[]>> linked = new HashMap<>();
-        jdbc.query("select same_as, source, name_ro, name_ru, aliases from ref.street where same_as is not null"
+        // Names linked only by the line (translations, old names): kept apart, used only at the seller's pin.
+        Map<Long, Set<String>> pinNames = new HashMap<>();
+        jdbc.query("select same_as, source, name_ro, name_ru, aliases, link_basis from ref.street where same_as is not null"
                 + " and source in " + sources, rs -> {
             String[] aliases = (String[]) rs.getArray(5).getArray();
+            if ("line".equals(rs.getString(6))) {
+                Set<String> names = pinNames.computeIfAbsent(rs.getLong(1), k -> new LinkedHashSet<>());
+                names.add(rs.getString(3));
+                names.add(rs.getString(4));
+                names.addAll(Arrays.asList(aliases));
+                names.remove("");
+                return;
+            }
             String[] row = new String[3 + aliases.length];
             row[0] = rs.getString(2);
             row[1] = rs.getString(3);
@@ -86,6 +96,17 @@ public final class RefGazetteer {
                                st_astext(st_simplify(s.geom::geometry, 0.00003))
                         from ref.street s left join ref.locality l on l.source = 'cadastre' and l.full_name = s.locality
                         where s.same_as is null and s.geom is not null and s.source in %s
+                          -- a map.md street that is not linked counts only if it is new: no street with a
+                          -- similar name within 300 m (else it is a second spelling that did not link)
+                          and (s.source <> 'mapmd' or not exists (
+                                select 1 from ref.street c
+                                where c.source in ('cadastre', 'osm') and c.same_as is null
+                                  and st_dwithin(c.geom, s.geom, 300)
+                                  and greatest(
+                                        case when s.name_ro <> '' and c.name_ro <> ''
+                                             then similarity(lower(unaccent(c.name_ro)), lower(unaccent(s.name_ro))) else 0 end,
+                                        case when s.name_ru <> '' and c.name_ru <> ''
+                                             then similarity(lower(c.name_ru), lower(s.name_ru)) else 0 end) >= 0.4))
                         order by s.id
                         """.formatted(sources), rs -> {
             long id = rs.getLong(1);
@@ -122,8 +143,12 @@ public final class RefGazetteer {
             float[][] line = lines(rs.getString(8));
             GeoPoint center = center(line);
             index.put(id, streets.size());
+            Set<String> atPin = new LinkedHashSet<>(pinNames.getOrDefault(id, Set.of()));
+            atPin.removeAll(aliases);
+            atPin.remove(nameRo);
+            atPin.remove(nameRu);
             streets.add(StreetGazetteer.street(type, nameRo, nameRu, List.copyOf(aliases), center, extent(line, center),
-                    streets.size(), rs.getString(7), line));
+                    streets.size(), rs.getString(7), line, List.copyOf(atPin)));
         });
 
         // Address points on their (cadastre) street, the cadastre's first where both have the number.
@@ -214,12 +239,13 @@ public final class RefGazetteer {
         String credit = "Cadastre of the Republic of Moldova (geodata.gov.md); © OpenStreetMap contributors, ODbL";
         try (Writer w = gzipWriter(dir.resolve("md-streets.tsv.gz"))) {
             w.write("# Streets of Moldova. " + credit + ".\n");
-            w.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\tcity\tline\n");
+            w.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\tcity\tline\tpin_names\n");
             for (Street s : g.streets().streets()) {
                 w.write(String.join("\t", s.type(), s.nameRo(), s.nameRu(), String.join("|", aliasesOf(s)),
                         String.format(java.util.Locale.ROOT, "%.6f", s.point().lat()),
                         String.format(java.util.Locale.ROOT, "%.6f", s.point().lon()),
-                        String.format(java.util.Locale.ROOT, "%.2f", s.extentKm()), "0", s.city(), Polyline.encode(s.line())));
+                        String.format(java.util.Locale.ROOT, "%.2f", s.extentKm()), "0", s.city(), Polyline.encode(s.line()),
+                        String.join("|", s.pinNames())));
                 w.write('\n');
             }
         }

@@ -67,6 +67,8 @@ public class ScraperApplication {
                     }
                     if (what.contains("mapmd")) {
                         mapmd.run(); // only when asked for: map.md publishes no licence
+                    } else if (what.contains("mapmd-link")) {
+                        mapmd.link(); // link the stored map.md streets again, without downloading
                     }
                 }
                 case "export-gazetteer" -> {
