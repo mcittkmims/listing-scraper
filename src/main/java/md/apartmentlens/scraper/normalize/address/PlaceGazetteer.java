@@ -212,6 +212,12 @@ public final class PlaceGazetteer {
         return Optional.ofNullable(best);
     }
 
+    /** The settlement with exactly this name (no spelling tolerance) nearest to a point. */
+    public Optional<Place> settlementExactly(String name, GeoPoint near) {
+        return settlements.getOrDefault(placeKey(name), List.of()).stream()
+                .min(Comparator.comparingDouble(p -> p.point().kmTo(near)));
+    }
+
     /** A city district (sector) or quarter of a settlement, e.g. "Botanica" in Chișinău. */
     public Optional<Place> district(String districtLabel, Place settlement) {
         if (districtLabel == null || settlement == null) {

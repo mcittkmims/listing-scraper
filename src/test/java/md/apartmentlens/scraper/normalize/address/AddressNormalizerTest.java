@@ -238,6 +238,24 @@ class AddressNormalizerTest {
     }
 
     @Test
+    void misreadsFoundInTheUnrecognizedStreets() {
+        // A house number after the name is not a different numbered street.
+        assertThat(chisinau("Afanasie Chiochiu 6", "6").streetName()).isNotEqualTo("Afanasie Chiochiu 6");
+        // Russian Е for Э.
+        assertThat(chisinau("М. Еминеску", "1").streetName()).isEqualTo("Mihai Eminescu");
+        // Text that names no street.
+        assertThat(AddressNormalizer.isNoName("нет")).isTrue();
+        assertThat(AddressNormalizer.isNoName("Nui denumirea")).isTrue();
+        assertThat(AddressNormalizer.isNoName("hgfjkl")).isTrue();
+        assertThat(AddressNormalizer.isNoName("V")).isTrue();
+        assertThat(AddressNormalizer.isNoName("Ismail")).isFalse();
+        assertThat(AddressNormalizer.isNoName("1 Mai")).isFalse();
+        // The town written before the street.
+        Place ciutesti = places.settlement("Ciutești", "Nisporeni", null).orElseThrow();
+        assertThat(AddressNormalizer.dropLeadingLocality("Ciutesti Tudor tarna", ciutesti)).isEqualTo("Tudor tarna");
+    }
+
+    @Test
     void localityLabels() {
         assertThat(places.settlement("Bender/Tighina", null, null)).isPresent();
         assertThat(PlaceGazetteer.placeKey("Chișinău mun.")).isEqualTo("chisinau");

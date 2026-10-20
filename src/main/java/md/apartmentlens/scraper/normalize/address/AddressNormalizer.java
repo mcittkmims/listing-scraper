@@ -1,6 +1,7 @@
 package md.apartmentlens.scraper.normalize.address;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -101,6 +102,11 @@ public final class AddressNormalizer {
             return fromPin(null, houseValue(house, houseRaw, issues), pin);
         }
         street = mainPart(street, locality, pin);
+        if (isNoName(street)) {
+            // "нет", "Nui denumirea", "hgfjkl", "V": the seller gave no street.
+            return fromPin(null, houseValue(house, houseRaw, issues), pin);
+        }
+        street = dropLeadingLocality(street, locality);
         String area = areaName(street, locality);
         if (area != null) {
             // Not a street: keep it as the area, and take the street from the seller's pin if it shows one.
@@ -278,13 +284,55 @@ public final class AddressNormalizer {
             if (places.district(split.name(), locality).isPresent()) {
                 return street;
             }
-            // Another village nearby written where the street belongs ("Holercani" for an ad in Ustia).
-            Optional<Place> other = places.settlement(split.name(), null, locality.point());
+            // Another village nearby written where the street belongs ("Holercani" for an ad in Ustia). Exact
+            // names only: "Dumbravei" is a street of Durlești, not the village Dumbrava.
+            Optional<Place> other = places.settlementExactly(split.name(), locality.point());
             if (other.isPresent() && !other.get().equals(locality) && other.get().point().kmTo(locality.point()) < 15) {
                 return street;
             }
         }
         return null;
+    }
+
+    private static final Pattern NO_NAME = Pattern.compile(
+            "^(net|нет|nu|nui|nu este|nu are|nui denumirea|nu are denumire|fara denumire|fara nume|без названия|"
+                    + "neidentificat|neindentificat|necunoscut|periferie|periferia|-+|\\?+)$");
+
+    /** Text that names no street: a refusal, a placeholder, keyboard mashing or a single letter. */
+    static boolean isNoName(String street) {
+        StreetTypes.Split split = StreetTypes.split(street);
+        String name = split.name() == null ? "" : split.name();
+        String key = Text.fold(name);
+        if (key.isEmpty()) {
+            return false;
+        }
+        if (NO_NAME.matcher(key).matches()) {
+            return true;
+        }
+        String letters = key.replaceAll("[^\\p{L}]", "");
+        if (letters.isEmpty() || key.matches(".*\\d.*")) {
+            return false;
+        }
+        boolean noVowel = !letters.matches(".*[aeiouyăâîаеёиоуыэюя].*");
+        boolean oneLetterRepeated = letters.chars().distinct().count() == 1;
+        return letters.length() <= 2 || oneLetterRepeated || (noVowel && letters.length() <= 8);
+    }
+
+    /** "Ciutesti Tudor tarna" in Ciutești: the street is Tudor Țărnă. */
+    static String dropLeadingLocality(String street, Place locality) {
+        if (locality == null) {
+            return street;
+        }
+        String key = Text.fold(street);
+        for (String name : new String[] {locality.nameRo(), locality.nameRu()}) {
+            String n = Text.fold(name);
+            if (!n.isEmpty() && key.startsWith(n + " ") && key.length() > n.length() + 3) {
+                String[] words = street.strip().split("\\s+");
+                int drop = n.split(" ").length;
+                return words.length > drop ? String.join(" ", Arrays.copyOfRange(words, drop, words.length)) : street;
+            }
+        }
+        return street;
     }
 
     /** "124" and "124F" name the same house number in a street field. */

@@ -215,6 +215,18 @@ public final class StreetGazetteer {
     /** Like {@link #resolve(String, String, GeoPoint, double, boolean)}, among the streets {@code allowed} accepts. */
     public Optional<Match> resolve(String name, String type, GeoPoint center, double radiusKm, boolean pinned,
                                    java.util.function.Predicate<Street> allowed) {
+        Optional<Match> found = resolveName(name, type, center, radiusKm, pinned, allowed);
+        if (found.isEmpty() && name != null && INITIAL_IE.matcher(name).find()) {
+            // Russian writes Эминеску; sellers often type "Еминеску".
+            found = resolveName(INITIAL_IE.matcher(name).replaceAll("$1Э"), type, center, radiusKm, pinned, allowed);
+        }
+        return found;
+    }
+
+    private static final java.util.regex.Pattern INITIAL_IE = java.util.regex.Pattern.compile("(^|[\\s.])[Ее]");
+
+    private Optional<Match> resolveName(String name, String type, GeoPoint center, double radiusKm, boolean pinned,
+                                        java.util.function.Predicate<Street> allowed) {
         String key = Text.fold(name);
         if (key.isEmpty() || center == null) {
             return Optional.empty();
@@ -380,8 +392,15 @@ public final class StreetGazetteer {
     }
 
     private static boolean numbersConflict(String key, Street s) {
+        // A number at the end of what the seller wrote is a house number ("Stan Posadnicu 25"), unless the
+        // street's own name ends with a number too ("Linia 8").
+        String[] words = key.split(" ");
+        String street = s.nameKey();
+        if (words.length > 1 && words[words.length - 1].matches("\\d+") && !street.matches(".*\\d$")) {
+            key = String.join(" ", Arrays.copyOf(words, words.length - 1));
+        }
         java.util.Set<String> mine = numbers(key);
-        java.util.Set<String> theirs = numbers(s.nameKey());
+        java.util.Set<String> theirs = numbers(street);
         return !mine.isEmpty() && !theirs.isEmpty() && !mine.equals(theirs)
                 || !mine.isEmpty() && theirs.isEmpty() && mine.stream().allMatch(n -> n.length() <= 2)
                 || mine.isEmpty() && !theirs.isEmpty() && theirs.stream().allMatch(n -> n.length() <= 2);

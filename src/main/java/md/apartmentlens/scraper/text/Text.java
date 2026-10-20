@@ -137,6 +137,14 @@ public final class Text {
      * "Каля Ешилор" -> "calea esilor"; used only for fuzzy matching, never shown.
      */
     public static String cyrillicToLatinKey(String s) {
+        return cyrillicToLatinKey(s, true);
+    }
+
+    /**
+     * Like {@link #cyrillicToLatinKey(String)}; {@code initialIe} false reads a word-initial Е as "e": Russian
+     * writes Эминеску, but sellers often type "Еминеску".
+     */
+    public static String cyrillicToLatinKey(String s, boolean initialIe) {
         String f = fold(s);
         StringBuilder sb = new StringBuilder(f.length() + 8);
         for (int i = 0; i < f.length(); i++) {
@@ -158,7 +166,7 @@ public final class Text {
                         sb.append('d');
                     }
                 }
-                case 'е' -> sb.append(wordStart ? "ie" : "e"); // "Ешилор" -> "iesilor"
+                case 'е' -> sb.append(wordStart && initialIe ? "ie" : "e"); // "Ешилор" -> "iesilor"
                 case 'ж' -> sb.append('j');
                 case 'з' -> sb.append('z');
                 case 'и' -> sb.append('i');
