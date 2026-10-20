@@ -52,12 +52,10 @@ public final class StreetGazetteer {
      * @param city the locality the street belongs to, or empty when unknown
      * @param line the street's line, as parts of lat, lon pairs; empty when unknown
      * @param aliasNames other names of the street, as written (their folded forms are in aliasKeys)
-     * @param pinNames   names known only from a source whose line lies on this street (translations, old
-     *                   names); trusted only where the seller's pin stands on the street
      */
     public record Street(String type, String nameRo, String nameRu, GeoPoint point, double extentKm,
                          String keyRo, String keyRu, Set<String> aliasKeys, String translitRu, int index,
-                         String city, float[][] line, List<String> aliasNames, List<String> pinNames) {
+                         String city, float[][] line, List<String> aliasNames) {
 
         /** The name to show: Romanian, or Russian where the map has no Romanian name. */
         public String name() {
@@ -143,24 +141,17 @@ public final class StreetGazetteer {
             String[] f = line.split("\t", -1);
             list.add(street(f[0], f[1], f[2], f[3].isEmpty() ? List.of() : Arrays.asList(f[3].split("\\|")),
                     new GeoPoint(Double.parseDouble(f[4]), Double.parseDouble(f[5])), Double.parseDouble(f[6]),
-                    list.size(), f.length > 8 ? f[8] : "", f.length > 9 ? Polyline.decode(f[9]) : new float[0][],
-                    f.length > 10 && !f[10].isEmpty() ? Arrays.asList(f[10].split("\\|")) : List.of()));
+                    list.size(), f.length > 8 ? f[8] : "", f.length > 9 ? Polyline.decode(f[9]) : new float[0][]));
         }
         return list;
     }
 
     public static Street street(String type, String nameRo, String nameRu, List<String> aliases, GeoPoint point,
                                 double extentKm, int index, String city, float[][] line) {
-        return street(type, nameRo, nameRu, aliases, point, extentKm, index, city, line, List.of());
-    }
-
-    public static Street street(String type, String nameRo, String nameRu, List<String> aliases, GeoPoint point,
-                                double extentKm, int index, String city, float[][] line, List<String> pinNames) {
         Set<String> aliasKeys = aliases.stream().map(Text::fold).filter(k -> !k.isEmpty())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         return new Street(type, nameRo, nameRu, point, extentKm, Text.fold(nameRo), Text.fold(nameRu), aliasKeys,
-                nameRu.isEmpty() ? "" : Text.cyrillicToLatinKey(nameRu), index, city, line, List.copyOf(aliases),
-                List.copyOf(pinNames));
+                nameRu.isEmpty() ? "" : Text.cyrillicToLatinKey(nameRu), index, city, line, List.copyOf(aliases));
     }
 
     public int size() {
@@ -352,10 +343,7 @@ public final class StreetGazetteer {
         return Optional.of(new Match(st.name(), st.type(), st, "nearby"));
     }
 
-    /**
-     * How much a seller's street name looks like a street's name, in any spelling, including the names only
-     * trusted at the pin (it is used only for streets at the seller's pin): 0 to 1.
-     */
+    /** How much a seller's street name looks like a street's name, in any spelling: 0 to 1. */
     public double likeness(String name, Street s) {
         String key = Text.fold(name);
         boolean cyrillic = Text.hasCyrillic(name);
@@ -364,21 +352,7 @@ public final class StreetGazetteer {
     }
 
     private static double likenessAtPin(String key, String latin, String latinStem, boolean cyrillic, Street s) {
-        if (numbersConflict(key, s)) {
-            return 0;
-        }
-        double best = likeness(key, latin, latinStem, cyrillic, s);
-        for (String n : s.pinNames()) {
-            String k = Text.fold(n);
-            if (!numbers(k).equals(numbers(key))) {
-                continue;
-            }
-            if (k.equals(key)) {
-                return 1.0;
-            }
-            best = Math.max(best, Text.similarity(key, k));
-        }
-        return best;
+        return numbersConflict(key, s) ? 0 : likeness(key, latin, latinStem, cyrillic, s);
     }
 
     /** The numbers in a name ("2-й пер. Мицкевича", "Linia 8"); names with different numbers are other streets. */

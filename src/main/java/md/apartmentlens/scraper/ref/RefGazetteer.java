@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -34,13 +33,15 @@ import org.springframework.jdbc.core.RowCallbackHandler;
 
 /**
  * Builds the normalizer's street and place lists from the {@code ref} tables: each cadastre street with
- * the names of the same street in OpenStreetMap and map.md, plus the streets only those sources know;
+ * the names of the same street in OpenStreetMap, plus the streets only OpenStreetMap knows;
  * every address point on its street; and the settlements and city districts. Can also write them to the
  * gazetteer files that tests and an empty database fall back on.
  */
 public final class RefGazetteer {
 
     private static final Logger log = LoggerFactory.getLogger(RefGazetteer.class);
+    /** Points of one house number this close together are one building. */
+    static final double SAME_BUILDING_KM = 0.1;
 
     /** The gazetteers built from one read of the tables. */
     public record Loaded(StreetGazetteer streets, PlaceGazetteer places) {
@@ -58,33 +59,13 @@ public final class RefGazetteer {
         return n != null && n > 0;
     }
 
-    /** Everything in the tables, for the running scraper. */
     public Loaded load() {
-        return load(true);
-    }
-
-    /**
-     * @param withMapMd false leaves out the map.md names, as for the files committed to the public repository:
-     *                  map.md publishes no licence, so its data is not republished
-     */
-    public Loaded load(boolean withMapMd) {
-        String sources = withMapMd ? "('cadastre', 'osm', 'mapmd')" : "('cadastre', 'osm')";
         long start = System.nanoTime();
         // Names of the same street in other sources, by the cadastre street they belong to.
         Map<Long, List<String[]>> linked = new HashMap<>();
-        // Names linked only by the line (translations, old names): kept apart, used only at the seller's pin.
-        Map<Long, Set<String>> pinNames = new HashMap<>();
-        jdbc.query("select same_as, source, name_ro, name_ru, aliases, link_basis from ref.street where same_as is not null"
-                + " and source in " + sources, rs -> {
+        jdbc.query("select same_as, source, name_ro, name_ru, aliases from ref.street where same_as is not null"
+                + " order by id", (RowCallbackHandler) rs -> {
             String[] aliases = (String[]) rs.getArray(5).getArray();
-            if ("line".equals(rs.getString(6))) {
-                Set<String> names = pinNames.computeIfAbsent(rs.getLong(1), k -> new LinkedHashSet<>());
-                names.add(rs.getString(3));
-                names.add(rs.getString(4));
-                names.addAll(Arrays.asList(aliases));
-                names.remove("");
-                return;
-            }
             String[] row = new String[3 + aliases.length];
             row[0] = rs.getString(2);
             row[1] = rs.getString(3);
@@ -99,20 +80,9 @@ public final class RefGazetteer {
                         select s.id, s.source, s.type, s.name_ro, s.name_ru, s.aliases, coalesce(l.name, ''),
                                st_astext(st_simplify(s.geom::geometry, 0.00003))
                         from ref.street s left join ref.locality l on l.source = 'cadastre' and l.full_name = s.locality
-                        where s.same_as is null and s.geom is not null and s.source in %s
-                          -- a map.md street that is not linked counts only if it is new: no street with a
-                          -- similar name within 300 m (else it is a second spelling that did not link)
-                          and (s.source <> 'mapmd' or not exists (
-                                select 1 from ref.street c
-                                where c.source in ('cadastre', 'osm') and c.same_as is null
-                                  and st_dwithin(c.geom, s.geom, 300)
-                                  and greatest(
-                                        case when s.name_ro <> '' and c.name_ro <> ''
-                                             then similarity(lower(unaccent(c.name_ro)), lower(unaccent(s.name_ro))) else 0 end,
-                                        case when s.name_ru <> '' and c.name_ru <> ''
-                                             then similarity(lower(c.name_ru), lower(s.name_ru)) else 0 end) >= 0.4))
+                        where s.same_as is null and s.geom is not null
                         order by s.id
-                        """.formatted(sources), rs -> {
+                        """, (RowCallbackHandler) rs -> {
             long id = rs.getLong(1);
             String type = rs.getString(3);
             String nameRo = rs.getString(4);
@@ -147,27 +117,29 @@ public final class RefGazetteer {
             float[][] line = lines(rs.getString(8));
             GeoPoint center = center(line);
             index.put(id, streets.size());
-            Set<String> atPin = new LinkedHashSet<>(pinNames.getOrDefault(id, Set.of()));
-            atPin.removeAll(aliases);
-            atPin.remove(nameRo);
-            atPin.remove(nameRu);
             streets.add(StreetGazetteer.street(type, nameRo, nameRu, List.copyOf(aliases), center, extent(line, center),
-                    streets.size(), rs.getString(7), line, List.copyOf(atPin)));
+                    streets.size(), rs.getString(7), line));
         });
 
-        // Address points on their (cadastre) street, the cadastre's first where both have the number.
+        // Address points on their (cadastre) street, the cadastre's first where both have the number. Points of
+        // one number from one source within SAME_BUILDING_KM are one building (entrances, a node and its
+        // outline): the first is kept. Farther apart, the number is on two places of the street (or of two
+        // same-named streets OpenStreetMap joined), so it is left out rather than guessed.
         int[] street = new int[2_000_000];
         String[] number = new String[street.length];
         float[] lat = new float[street.length];
         float[] lon = new float[street.length];
+        boolean[] cadastre = new boolean[street.length];
+        boolean[] ambiguous = new boolean[street.length];
         int[] n = {0};
         Map<String, String> clean = new HashMap<>();
-        Set<String> seen = new HashSet<>();
+        Map<String, Integer> kept = new HashMap<>();
         jdbc.query("""
-                        select coalesce(s.same_as, s.id), a.number, st_y(a.geom::geometry), st_x(a.geom::geometry)
+                        select coalesce(s.same_as, s.id), a.number, st_y(a.geom::geometry), st_x(a.geom::geometry),
+                               a.source = 'cadastre'
                         from ref.address_point a join ref.street s on s.id = a.street_id
-                        order by coalesce(s.same_as, s.id), a.source = 'cadastre' desc
-                        """, rs -> {
+                        order by coalesce(s.same_as, s.id), a.source = 'cadastre' desc, a.id
+                        """, (RowCallbackHandler) rs -> {
             Integer i = index.get(rs.getLong(1));
             if (i == null) {
                 return;
@@ -176,20 +148,42 @@ public final class RefGazetteer {
                 HouseNumbers.Result h = HouseNumbers.parse(k);
                 return h.kind() == HouseNumbers.Kind.NUMBER ? h.value() : "";
             });
-            if (value.isEmpty() || !seen.add(i + "|" + value)) {
+            if (value.isEmpty()) {
+                return;
+            }
+            Integer slot = kept.get(i + "|" + value);
+            if (slot != null) {
+                if (cadastre[slot] == rs.getBoolean(5) && new GeoPoint(lat[slot], lon[slot])
+                        .kmTo(new GeoPoint(rs.getFloat(3), rs.getFloat(4))) > SAME_BUILDING_KM) {
+                    ambiguous[slot] = true;
+                }
                 return;
             }
             if (n[0] == street.length) {
                 throw new IllegalStateException("more than " + street.length + " address points");
             }
+            kept.put(i + "|" + value, n[0]);
             street[n[0]] = i;
             number[n[0]] = value;
             lat[n[0]] = rs.getFloat(3);
             lon[n[0]] = rs.getFloat(4);
+            cadastre[n[0]] = rs.getBoolean(5);
             n[0]++;
         });
-        AddressIndex addresses = AddressIndex.of(Arrays.copyOf(street, n[0]), Arrays.copyOf(number, n[0]),
-                Arrays.copyOf(lat, n[0]), Arrays.copyOf(lon, n[0]), streets.size());
+        int m = 0;
+        for (int k = 0; k < n[0]; k++) {
+            if (!ambiguous[k]) {
+                street[m] = street[k];
+                number[m] = number[k];
+                lat[m] = lat[k];
+                lon[m] = lon[k];
+                m++;
+            }
+        }
+        log.info("{} house numbers left out: on one street at places more than {} m apart", n[0] - m,
+                Math.round(SAME_BUILDING_KM * 1000));
+        AddressIndex addresses = AddressIndex.of(Arrays.copyOf(street, m), Arrays.copyOf(number, m),
+                Arrays.copyOf(lat, m), Arrays.copyOf(lon, m), streets.size());
 
         PlaceGazetteer places = PlaceGazetteer.of(places());
         log.info("gazetteer from the ref tables: {} streets, {} address points, {} places, in {} ms", streets.size(),
@@ -211,9 +205,10 @@ public final class RefGazetteer {
                                            where p.place in ('city', 'town', 'village', 'hamlet')
                                              and lower(unaccent(coalesce(p.name_ro, p.name))) = lower(unaccent(l.name))
                                              and st_dwithin(p.geom::geography, l.point, 8000)
-                                           order by p.geom <-> l.point::geometry limit 1) o on true
+                                           order by p.geom <-> l.point::geometry, p.node_id limit 1) o on true
                         where l.source = 'cadastre' and l.point is not null
-                        """, rs -> {
+                        order by l.id
+                        """, (RowCallbackHandler) rs -> {
             String type = switch (rs.getString(3)) {
                 case "mun" -> "city";
                 case "or" -> "town";
@@ -231,6 +226,7 @@ public final class RefGazetteer {
                                    select 1 from ref.locality l where l.source = 'cadastre'
                                      and lower(unaccent(l.name)) = lower(unaccent(coalesce(p.name_ro, p.name)))
                                      and st_dwithin(l.point, p.geom::geography, 8000)))
+                        order by p.node_id
                         """, (RowCallbackHandler) rs -> out.add(new Place(
                 Text.fixDiacritics(rs.getString(1)), rs.getString(2), rs.getString(3),
                 new GeoPoint(rs.getDouble(4), rs.getDouble(5)), rs.getInt(6))));
@@ -243,13 +239,12 @@ public final class RefGazetteer {
         String credit = "Cadastre of the Republic of Moldova (geodata.gov.md); © OpenStreetMap contributors, ODbL";
         try (Writer w = gzipWriter(dir.resolve("md-streets.tsv.gz"))) {
             w.write("# Streets of Moldova. " + credit + ".\n");
-            w.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\tcity\tline\tpin_names\n");
+            w.write("type\tname_ro\tname_ru\taliases\tlat\tlon\textent_km\tways\tcity\tline\n");
             for (Street s : g.streets().streets()) {
                 w.write(String.join("\t", s.type(), s.nameRo(), s.nameRu(), String.join("|", s.aliasNames()),
                         String.format(Locale.ROOT, "%.6f", s.point().lat()),
                         String.format(Locale.ROOT, "%.6f", s.point().lon()),
-                        String.format(Locale.ROOT, "%.2f", s.extentKm()), "0", s.city(), Polyline.encode(s.line()),
-                        String.join("|", s.pinNames())));
+                        String.format(Locale.ROOT, "%.2f", s.extentKm()), "0", s.city(), Polyline.encode(s.line())));
                 w.write('\n');
             }
         }
