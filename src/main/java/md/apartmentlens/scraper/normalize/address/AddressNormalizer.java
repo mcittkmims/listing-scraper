@@ -26,7 +26,7 @@ public final class AddressNormalizer {
     static final double PIN_RADIUS_KM = 1.5;
 
     private static final Pattern TRAILING_NUMBER = Pattern.compile(
-            "^(.*?\\p{L}.*?)(\\s*,\\s*|\\s+)(?:nr\\.?\\s*)?(\\d{1,3}(?:\\s*/\\s*\\d{1,3})?\\s*[A-Za-z]?)$");
+            "^(.*?\\p{L}.*?)(\\s*,\\s*|\\s+)(?:nr\\.?\\s*)?(\\d{1,3}(?:\\s*/\\s*(?:\\d{1,3}|[A-Za-z]))?\\s*[A-Za-z]?)$");
 
     /**
      * @param street   the recognized street with its position, when known

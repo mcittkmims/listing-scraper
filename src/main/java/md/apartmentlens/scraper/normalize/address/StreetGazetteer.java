@@ -284,9 +284,11 @@ public final class StreetGazetteer {
             List<Scored> scored = near.stream()
                     .filter(s -> !numbersConflict(key, s))
                     .map(s -> new Scored(s, Math.max(Math.max(
-                            s.keyRo().isEmpty() ? 0 : Text.similarity(latin, s.keyRo()),
+                            s.keyRo().isEmpty() || otherInitial(cyrillic, latin, s.keyRo()) ? 0
+                                    : Text.similarity(latin, s.keyRo()),
                             cyrillic && !s.keyRu().isEmpty() ? Text.similarity(key, s.keyRu())
-                                    : s.translitRu().isEmpty() ? 0 : Text.similarity(latin, s.translitRu())),
+                                    : s.translitRu().isEmpty() || otherInitial(cyrillic, latin, s.translitRu()) ? 0
+                                    : Text.similarity(latin, s.translitRu())),
                             // Same word stems: "Буковина" / Bucovinei, "Комсомольская" / Comsomolului.
                             latinStem.length() >= 5 && !s.keyRo().isEmpty() && latinStem.equals(stem(s.keyRo()))
                                     ? STEM_SCORE : 0)))
@@ -390,6 +392,27 @@ public final class StreetGazetteer {
                 : s.translitRu().isEmpty() ? 0 : Text.similarity(latin, s.translitRu());
         double stems = !latinStem.isEmpty() && !s.keyRo().isEmpty() && latinStem.equals(stem(s.keyRo())) ? STEM_SCORE : 0;
         return Math.max(Math.max(ro, ru), stems);
+    }
+
+    /**
+     * Two names that differ only in their first letter are two streets ("Perilor", "Merilor"), not a typo. Î
+     * folds to "a", so I and A are one letter here ("Invierea", "Învierea"), as are K and C in Russian names
+     * typed in Latin letters ("Kosmonavtov"). Russian text is transliterated first, which can change the first
+     * letter (Х: H, Г: G or H), so it is not held to this.
+     */
+    static boolean otherInitial(boolean cyrillic, String latin, String keyRo) {
+        if (cyrillic || latin.length() != keyRo.length() || latin.length() < 2) {
+            return false;
+        }
+        return initial(latin) != initial(keyRo) && latin.substring(1).equals(keyRo.substring(1));
+    }
+
+    private static char initial(String key) {
+        return switch (key.charAt(0)) {
+            case 'i' -> 'a';
+            case 'k' -> 'c';
+            default -> key.charAt(0);
+        };
     }
 
     /** The building at the pin must be this close, and the next street's buildings clearly farther. */

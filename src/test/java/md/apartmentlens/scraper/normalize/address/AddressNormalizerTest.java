@@ -2,6 +2,7 @@ package md.apartmentlens.scraper.normalize.address;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.Issues;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer.Place;
 import md.apartmentlens.scraper.source.GeoPoint;
@@ -19,8 +20,8 @@ class AddressNormalizerTest {
 
     @BeforeAll
     static void load() {
-        places = PlaceGazetteer.load();
-        addresses = new AddressNormalizer(StreetGazetteer.load(), places);
+        places = Fixtures.places();
+        addresses = new AddressNormalizer(Fixtures.streets(), places);
         chisinau = places.settlement("Chișinău", "Chișinău mun.", null).orElseThrow();
     }
 
@@ -169,6 +170,24 @@ class AddressNormalizerTest {
     void streetsOnTheCitysEdgeAreFoundEvenWhenTheyBelongToASuburb() {
         // Sellers list Strada Regina Elisabeta (Durlești) as "Chișinău".
         assertThat(chisinau("str. Regina Elisabeta", "4").streetMatch()).isEqualTo("exact");
+    }
+
+    @Test
+    void aHouseNumberWithALetterAfterTheSlashIsCutFromTheStreet() {
+        var a = chisinau("bd. Dacia 59/D", null);
+        assertThat(a.streetName()).isEqualTo("Dacia");
+        assertThat(a.houseNumber()).isNotNull().startsWith("59");
+    }
+
+    @Test
+    void aNameThatDiffersOnlyInItsFirstLetterIsAnotherStreet() {
+        // Ialoveni has Strada Merilor but no Strada Perilor: "Perilor" is not a typo of "Merilor".
+        Place ialoveni = places.settlement("Ialoveni", "Ialoveni", null).orElseThrow();
+        var a = addresses.normalize("str. Perilor", null, ialoveni, null, new Issues());
+        assertThat(a.streetName()).isNotEqualTo("Merilor");
+        assertThat(StreetGazetteer.otherInitial(false, "perilor", "merilor")).isTrue();
+        assertThat(StreetGazetteer.otherInitial(false, "invierea domnului", "anvierea domnului")).isFalse(); // Î
+        assertThat(StreetGazetteer.otherInitial(true, "gagarin", "hagarin")).isFalse(); // transliterated
     }
 
     @Test

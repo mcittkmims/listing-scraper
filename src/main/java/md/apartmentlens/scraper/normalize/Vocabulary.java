@@ -77,7 +77,7 @@ public final class Vocabulary {
             .put("aerated_concrete", "Beton celular", "BCA", "Газобетон", "Газоблок", "Ячеистый бетон")
             .put("wood", "Lemn", "Дерево", "Деревянный")
             .put("adobe", "Din chirpici", "Chirpici", "Саман", "Из самана", "Саманный")
-            .put("other", "Altul", "Другое", "Другой");
+            .put("other", "Altul", "Altele", "Другое", "Другой");
 
     /** Building series or layout ("compartimentare"): Soviet series, Moldovan series, individual layout. */
     public static final Vocabulary SERIES = new Vocabulary("building_series")
@@ -94,7 +94,8 @@ public final class Vocabulary {
             .put("family_dorm", "Cămin familial", "Семейное общежитие", "Малосемейная", "Малосемейка")
             .put("studio", "Garsonieră", "Гостинка", "Гостинка (гарсоньера)")
             .put("ground_floor_house", "Pe pămănt", "Pe pământ", "На земле")
-            .put("individual", "Individuală", "Индивидуальная", "Индивидуальный проект");
+            .put("individual", "Individuală", "Индивидуальная", "Индивидуальный проект")
+            .put("improved", "Îmbunătățită", "Planificare îmbunătățită", "Улучшенная", "Улучшенная планировка");
 
     public static final Vocabulary CONDITION = new Vocabulary("condition")
             .put("white_shell", "Variantă albă", "Белый вариант")
@@ -102,9 +103,9 @@ public final class Vocabulary {
             .put("euro_renovation", "Euroreparație", "Евроремонт")
             .put("cosmetic_renovation", "Reparație cosmetică", "Косметический ремонт")
             .put("individual_design", "Design individual", "Индивидуальный дизайн")
-            .put("habitable", "Stare locativă", "Locuibilă", "Жилое состояние")
+            .put("habitable", "Stare locativă", "Locuibilă", "Bună", "Жилое состояние")
             .put("no_renovation", "Fără reparație", "Без ремонта")
-            .put("needs_renovation", "Are nevoie de reparație", "Требует ремонта", "Нуждается в ремонте")
+            .put("needs_renovation", "Are nevoie de reparație", "Necesită renovare", "Требует ремонта", "Нуждается в ремонте")
             .put("unfinished", "Construcție nefinisată", "Незавершённое строительство", "Незавершенное строительство")
             .put("commissioned", "Dat în exploatare", "Сдан в эксплуатацию")
             .put("to_demolish", "Casă de demolat", "Дом под снос");
@@ -117,7 +118,7 @@ public final class Vocabulary {
 
     /** Types within the houses category. */
     public static final Vocabulary HOUSE_TYPE = new Vocabulary("property_type")
-            .put("house", "Casă", "Дом")
+            .put("house", "Casă", "Дом", "Individual", "Individuală")
             .put("townhouse", "Townhouse", "Таунхаус")
             .put("duplex", "Duplex", "Дуплекс")
             .put("villa", "Vilă", "Вилла");
