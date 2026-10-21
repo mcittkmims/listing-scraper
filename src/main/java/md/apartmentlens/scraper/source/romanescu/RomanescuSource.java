@@ -139,9 +139,14 @@ public class RomanescuSource implements ListingSource {
         return parser.parse(json.readTree(raw.body()));
     }
 
+    /** Without an approximate map point: the site moves it at random on every view of the page. */
     @Override
     public byte[] stableContent(RawAd raw) {
-        return raw.body();
+        ObjectNode node = (ObjectNode) json.readTree(raw.body());
+        if (!"1".equals(node.path("map").path("exact").asString(""))) {
+            node.remove("map");
+        }
+        return json.writeValueAsBytes(node);
     }
 
     /** Each ad's card text on a listing page, by the ad's address. */

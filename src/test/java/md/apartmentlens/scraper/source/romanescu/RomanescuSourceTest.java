@@ -67,6 +67,16 @@ class RomanescuSourceTest {
     }
 
     @Test
+    void theApproximatePointMovingOnEveryViewIsNotAChange() {
+        ObjectNode page = extract();
+        byte[] before = SOURCE.stableContent(new RawAd("900001", Fixtures.JSON.writeValueAsBytes(page)));
+        ((ObjectNode) page.path("map")).put("lat", "46.98400").put("lng", "28.87100");
+        assertThat(SOURCE.stableContent(new RawAd("900001", Fixtures.JSON.writeValueAsBytes(page)))).isEqualTo(before);
+        ((ObjectNode) page.path("offer")).put("price", "180000");
+        assertThat(SOURCE.stableContent(new RawAd("900001", Fixtures.JSON.writeValueAsBytes(page)))).isNotEqualTo(before);
+    }
+
+    @Test
     void placesOutsideMoldovaAreNotCollected() {
         assertThat(SOURCE.inMoldova("Chisinau")).isTrue();
         assertThat(SOURCE.inMoldova("Singera")).isTrue();
