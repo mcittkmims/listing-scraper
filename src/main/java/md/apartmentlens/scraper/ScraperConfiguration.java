@@ -79,8 +79,8 @@ class ScraperConfiguration {
     }
 
     @Bean
-    RomanescuSource romanescuSource(PoliteHttpClient http, JsonMapper json) {
-        return new RomanescuSource(http, json);
+    RomanescuSource romanescuSource(PoliteHttpClient http, JsonMapper json, RefGazetteer.Loaded gazetteer) {
+        return new RomanescuSource(http, json, gazetteer.places());
     }
 
     @Bean

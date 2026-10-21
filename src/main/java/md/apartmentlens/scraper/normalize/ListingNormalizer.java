@@ -25,7 +25,7 @@ import md.apartmentlens.scraper.text.Text;
  */
 public final class ListingNormalizer {
 
-    public static final int VERSION = 8;
+    public static final int VERSION = 9;
 
     private static final Pattern COUNT = Pattern.compile("(\\d{1,2})");
     private static final Pattern REGION_SUFFIX = Pattern.compile("\\s*\\b(mun\\.?|municipiul|r-nul|raionul|UTA)\\s*",

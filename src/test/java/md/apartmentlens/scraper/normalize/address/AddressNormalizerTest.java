@@ -277,6 +277,8 @@ class AddressNormalizerTest {
     @Test
     void localityLabels() {
         assertThat(places.settlement("Bender/Tighina", null, null)).isPresent();
+        assertThat(places.settlement("Singera", null, null)).hasValueSatisfying(p -> assertThat(p.nameRo()).isEqualTo("Sîngera"));
+        assertThat(places.settlement("Bic", "Chișinău", null)).hasValueSatisfying(p -> assertThat(p.nameRo()).isEqualTo("Bîc"));
         assertThat(PlaceGazetteer.placeKey("Chișinău mun.")).isEqualTo("chisinau");
         assertThat(PlaceGazetteer.placeKey("r-nul Ialoveni")).isEqualTo("ialoveni");
         assertThat(PlaceGazetteer.placeKey("Ghindești (sat)")).isEqualTo("ghindesti");

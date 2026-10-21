@@ -119,7 +119,7 @@ public final class Vocabulary {
     /** Types within the houses category. */
     public static final Vocabulary HOUSE_TYPE = new Vocabulary("property_type")
             .put("house", "Casă", "Дом", "Individual", "Individuală")
-            .put("townhouse", "Townhouse", "Таунхаус")
+            .put("townhouse", "Townhouse", "Case înșiruite", "Casă înșiruită", "Таунхаус")
             .put("duplex", "Duplex", "Дуплекс")
             .put("villa", "Vilă", "Вилла");
 }

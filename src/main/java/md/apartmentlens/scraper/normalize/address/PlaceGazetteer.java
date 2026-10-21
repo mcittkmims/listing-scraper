@@ -69,6 +69,11 @@ public final class PlaceGazetteer {
             for (String name : new String[] {p.nameRo(), p.nameRu()}) {
                 if (name != null && !name.isEmpty()) {
                     index.computeIfAbsent(Text.fold(name), k -> new ArrayList<>()).add(p);
+                    // Î and Â fold to "a", but written without diacritics they are often "i": "Singera", "Bic".
+                    String plain = Text.fold(name.replaceAll("[ÎîÂâ]", "i"));
+                    if (!plain.equals(Text.fold(name))) {
+                        index.computeIfAbsent(plain, k -> new ArrayList<>()).add(p);
+                    }
                 }
             }
         }

@@ -9,11 +9,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import md.apartmentlens.scraper.http.HttpStatusException;
 import md.apartmentlens.scraper.http.PoliteHttpClient;
+import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.source.Listed;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.source.RawAd;
@@ -35,6 +37,9 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>An ad page is stored as an extract of what describes the property (the offer's structured data, the
  * breadcrumbs, the table of features, the map point and the phone links), not as the whole page. The site's
  * structured data is malformed (trailing commas, missing closing braces) and is repaired before reading.
+ *
+ * <p>The agency also sells properties in Romania (Brașov), named like Moldovan places but with no country: an
+ * ad whose place is not a settlement of Moldova is left out and logged.
  */
 public class RomanescuSource implements ListingSource {
 
@@ -51,11 +56,13 @@ public class RomanescuSource implements ListingSource {
 
     private final PoliteHttpClient http;
     private final JsonMapper json;
+    private final PlaceGazetteer places;
     private final RomanescuParser parser = new RomanescuParser();
 
-    public RomanescuSource(PoliteHttpClient http, JsonMapper json) {
+    public RomanescuSource(PoliteHttpClient http, JsonMapper json, PlaceGazetteer places) {
         this.http = http;
         this.json = json;
+        this.places = places;
     }
 
     @Override
@@ -67,9 +74,12 @@ public class RomanescuSource implements ListingSource {
     public int crawl(Consumer<Listed> sink) throws IOException {
         for (String category : CATEGORIES) {
             Set<String> seen = new HashSet<>();
+            Set<String> abroad = new TreeSet<>();
             int pages = 0;
             for (int page = 1; page <= MAX_PAGES; page++) {
-                Map<String, String> cards = cards(page(URI.create(SITE + "/" + category + "?page=" + page)));
+                Document doc = page(URI.create(SITE + "/" + category + "?page=" + page));
+                Map<String, String> cards = cards(doc);
+                Map<String, String> placesOfCards = cardPlaces(doc);
                 if (cards.isEmpty() && page == 1) {
                     throw new IOException("Romanescu listing page without ads: " + category);
                 }
@@ -81,6 +91,11 @@ public class RomanescuSource implements ListingSource {
                 }
                 pages++;
                 for (Map.Entry<String, String> card : cards.entrySet()) {
+                    String place = placesOfCards.get(card.getKey());
+                    if (place != null && !inMoldova(place)) {
+                        abroad.add(place);
+                        continue;
+                    }
                     Matcher m = ID.matcher(card.getKey());
                     if (!m.find()) {
                         throw new IOException("Romanescu listed an ad without an id: " + card.getKey());
@@ -89,6 +104,9 @@ public class RomanescuSource implements ListingSource {
                 }
             }
             log.info("Romanescu {}: {} ads on {} pages", category, seen.size(), pages);
+            if (!abroad.isEmpty()) {
+                log.warn("Romanescu {}: ads in places that are not settlements of Moldova left out: {}", category, abroad);
+            }
         }
         return -1; // the site states no total
     }
@@ -112,7 +130,7 @@ public class RomanescuSource implements ListingSource {
         boolean listed = extract.path("offer").path("url").asString("").endsWith("-" + externalId)
                 && extract.path("offer").path("availability").asString("").endsWith("InStock")
                 && crumbs.size() >= 3 && "Vanzare".equals(crumbs.get(0).asString())
-                && KINDS.contains(crumbs.get(1).asString());
+                && KINDS.contains(crumbs.get(1).asString()) && inMoldova(crumbs.get(2).asString());
         return listed ? Optional.of(new RawAd(externalId, json.writeValueAsBytes(extract))) : Optional.empty();
     }
 
@@ -134,6 +152,23 @@ public class RomanescuSource implements ListingSource {
             out.putIfAbsent(link.absUrl("href"), card == null ? link.attr("title") : card.text());
         }
         return out;
+    }
+
+    /** Each ad's place on a listing page ("Chisinau, Botanica": the settlement), by the ad's address. */
+    static Map<String, String> cardPlaces(Document doc) {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Element link : doc.select(".property-card a.stretched-link[href]")) {
+            Element card = link.closest(".property-card");
+            Element location = card == null ? null : card.selectFirst(".location");
+            if (location != null && !location.text().isBlank()) {
+                out.putIfAbsent(link.absUrl("href"), location.text().split(",")[0].strip());
+            }
+        }
+        return out;
+    }
+
+    boolean inMoldova(String settlement) {
+        return places.settlement(settlement, null, null).isPresent();
     }
 
     /** What an ad page says about the property. */

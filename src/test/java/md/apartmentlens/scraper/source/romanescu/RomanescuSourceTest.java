@@ -22,7 +22,7 @@ import tools.jackson.databind.node.ObjectNode;
 /** A Romanescu ad page (synthetic, in the site's markup) through the extract, the parser and the normalizer. */
 class RomanescuSourceTest {
 
-    static final RomanescuSource SOURCE = new RomanescuSource(null, Fixtures.JSON);
+    static final RomanescuSource SOURCE = new RomanescuSource(null, Fixtures.JSON, Fixtures.places());
     static ListingNormalizer normalizer;
 
     @BeforeAll
@@ -64,6 +64,13 @@ class RomanescuSourceTest {
         assertThat(l.district()).isEqualTo("Botanica");
         assertThat(l.streetName()).isEqualTo("Cuza-Vodă");
         assertThat(l.amenities()).containsExactly("autonomous_heating", "elevator", "gas");
+    }
+
+    @Test
+    void placesOutsideMoldovaAreNotCollected() {
+        assertThat(SOURCE.inMoldova("Chisinau")).isTrue();
+        assertThat(SOURCE.inMoldova("Singera")).isTrue();
+        assertThat(SOURCE.inMoldova("Brasov")).isFalse();
     }
 
     @Test
