@@ -104,7 +104,7 @@ public class ProimobilSource implements ListingSource {
             throw new IllegalArgumentException("not a Proimobil id: " + externalId);
         }
         JsonNode page = read(http.get(search(FOR_SALE + ";id:" + externalId, 0, 1),
-                Map.of("Accept", "application/json")).body());
+                Map.of("Accept", "application/json"), AD_ATTEMPTS).body());
         for (JsonNode ad : page) {
             if (ad.path("id").asString().equals(externalId) && CATEGORIES.contains(ad.path("category").asString())
                     && inMoldova(ad)) {

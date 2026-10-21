@@ -95,7 +95,7 @@ public class RealistSource implements ListingSource {
         }
         Document doc;
         try {
-            doc = page(URI.create(SITE + "/cp" + externalId + "/"));
+            doc = page(URI.create(SITE + "/cp" + externalId + "/"), AD_ATTEMPTS);
         } catch (HttpStatusException e) {
             if (e.status() == 404) {
                 return Optional.empty();
@@ -188,7 +188,11 @@ public class RealistSource implements ListingSource {
     }
 
     private Document page(URI uri) throws IOException {
-        PoliteHttpClient.Response response = http.get(uri, Map.of("Accept", "text/html"));
+        return page(uri, Integer.MAX_VALUE);
+    }
+
+    private Document page(URI uri, int attempts) throws IOException {
+        PoliteHttpClient.Response response = http.get(uri, Map.of("Accept", "text/html"), attempts);
         return Jsoup.parse(new String(response.body(), StandardCharsets.UTF_8), uri.toString());
     }
 }

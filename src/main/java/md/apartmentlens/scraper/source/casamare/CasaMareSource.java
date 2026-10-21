@@ -87,7 +87,7 @@ public class CasaMareSource implements ListingSource {
         }
         JsonNode ad;
         try {
-            ad = get(URI.create(API + "/by-id/" + externalId));
+            ad = get(URI.create(API + "/by-id/" + externalId), AD_ATTEMPTS);
         } catch (HttpStatusException e) {
             if (e.status() == 404) {
                 return Optional.empty();
@@ -148,7 +148,11 @@ public class CasaMareSource implements ListingSource {
     }
 
     private JsonNode get(URI uri) throws IOException {
-        PoliteHttpClient.Response response = http.get(uri, Map.of("Accept", "application/json"));
+        return get(uri, Integer.MAX_VALUE);
+    }
+
+    private JsonNode get(URI uri, int attempts) throws IOException {
+        PoliteHttpClient.Response response = http.get(uri, Map.of("Accept", "application/json"), attempts);
         try {
             return json.readTree(response.body());
         } catch (RuntimeException e) {

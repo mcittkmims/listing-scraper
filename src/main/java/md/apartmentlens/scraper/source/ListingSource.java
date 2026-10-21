@@ -20,6 +20,9 @@ public interface ListingSource {
      */
     int crawl(Consumer<Listed> sink) throws IOException;
 
+    /** Attempts for one ad's page: a page that keeps failing is asked for again by the next pass. */
+    int AD_ATTEMPTS = 2;
+
     /**
      * Fetches one whole ad: present while it is listed for sale, empty once it is gone.
      *

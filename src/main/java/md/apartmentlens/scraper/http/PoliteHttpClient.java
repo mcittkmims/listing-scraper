@@ -51,11 +51,19 @@ public class PoliteHttpClient {
     }
 
     public Response post(URI uri, Map<String, String> headers, byte[] body) throws IOException {
-        return send(uri, headers, HttpRequest.BodyPublishers.ofByteArray(body), "POST");
+        return send(uri, headers, HttpRequest.BodyPublishers.ofByteArray(body), "POST", maxAttempts);
     }
 
     public Response get(URI uri, Map<String, String> headers) throws IOException {
-        return send(uri, headers, HttpRequest.BodyPublishers.noBody(), "GET");
+        return send(uri, headers, HttpRequest.BodyPublishers.noBody(), "GET", maxAttempts);
+    }
+
+    /**
+     * With fewer attempts than the default, for a request whose failure costs little: one ad's page, which
+     * the next pass asks for again, unlike a listing page whose loss spoils the pass.
+     */
+    public Response get(URI uri, Map<String, String> headers, int attempts) throws IOException {
+        return send(uri, headers, HttpRequest.BodyPublishers.noBody(), "GET", Math.min(attempts, maxAttempts));
     }
 
     /** Total requests sent, including retries. */
@@ -63,10 +71,10 @@ public class PoliteHttpClient {
         return requests.get();
     }
 
-    private Response send(URI uri, Map<String, String> headers, HttpRequest.BodyPublisher body, String method)
-            throws IOException {
+    private Response send(URI uri, Map<String, String> headers, HttpRequest.BodyPublisher body, String method,
+                          int attempts) throws IOException {
         IOException last = null;
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        for (int attempt = 1; attempt <= attempts; attempt++) {
             pause();
             HttpRequest.Builder b = HttpRequest.newBuilder(uri)
                     .timeout(requestTimeout)
@@ -87,7 +95,7 @@ public class PoliteHttpClient {
                     wait = retryAfter(r).orElse(wait);
                     last = new HttpStatusException(status, uri);
                     log.warn("{} {} -> HTTP {} (attempt {}/{}), retrying in {}s", method, uri, status, attempt,
-                            maxAttempts, wait.toSeconds());
+                            attempts, wait.toSeconds());
                 } else {
                     throw new HttpStatusException(status, uri);
                 }
@@ -97,13 +105,13 @@ public class PoliteHttpClient {
                 }
             } catch (IOException e) {
                 last = e;
-                log.warn("{} {} failed (attempt {}/{}): {}, retrying in {}s", method, uri, attempt, maxAttempts,
+                log.warn("{} {} failed (attempt {}/{}): {}, retrying in {}s", method, uri, attempt, attempts,
                         e.toString(), wait.toSeconds());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("interrupted", e);
             }
-            if (attempt < maxAttempts) {
+            if (attempt < attempts) {
                 sleep(wait);
             }
         }
