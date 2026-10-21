@@ -9,7 +9,7 @@ import md.apartmentlens.scraper.text.Text;
 
 /**
  * Street type words, in the forms sellers type them ("str.", "str-la", "bd.", "șos.", "ул.", "пр-т"),
- * and the codes they map to. The codes match tools/build_gazetteer.py.
+ * and the codes they map to. The address-data tool (database/geodata) has a copy; keep the two in step.
  */
 public final class StreetTypes {
 

@@ -14,10 +14,7 @@ import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
-import md.apartmentlens.scraper.ref.CadastreImporter;
-import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefGazetteer;
-import md.apartmentlens.scraper.ref.RefStore;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.source.casamare.CasaMareSource;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
@@ -96,23 +93,6 @@ class ScraperConfiguration {
     }
 
     @Bean
-    RefStore refStore(JdbcClient jdbc, JdbcTemplate template) {
-        return new RefStore(jdbc, template);
-    }
-
-    @Bean
-    CadastreImporter cadastreImporter(JsonMapper json, RefStore store, TransactionTemplate tx, Clock clock,
-                                      ScraperProperties p) {
-        PoliteHttpClient http = new PoliteHttpClient(p.userAgent(), Duration.ofSeconds(1), 6, Duration.ofSeconds(180));
-        return new CadastreImporter(http, json, store, tx, clock);
-    }
-
-    @Bean
-    OsmImporter osmImporter(JdbcClient jdbc, JdbcTemplate template, RefStore store, TransactionTemplate tx, Clock clock) {
-        return new OsmImporter(jdbc, template, store, tx, clock);
-    }
-
-    @Bean
     CrawlRunRepository crawlRunRepository(JdbcClient jdbc) {
         return new CrawlRunRepository(jdbc);
     }
@@ -144,7 +124,7 @@ class ScraperConfiguration {
             return ref.load();
         }
         LoggerFactory.getLogger(ScraperConfiguration.class)
-                .warn("ref tables are empty; using the bundled gazetteer files (run import-ref to load them)");
+                .warn("ref tables are empty; using the bundled gazetteer files (load them with database/geodata)");
         return new RefGazetteer.Loaded(StreetGazetteer.load(), PlaceGazetteer.load());
     }
 

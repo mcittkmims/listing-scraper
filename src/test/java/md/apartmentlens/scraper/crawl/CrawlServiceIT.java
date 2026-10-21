@@ -67,7 +67,7 @@ class CrawlServiceIT {
         Flyway.configure()
                 .dataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword())
                 .locations("filesystem:" + System.getProperty("migrations.dir"))
-                .placeholders(Map.of("scraper_password", "scraper-test"))
+                .placeholders(Map.of("scraper_password", "scraper-test", "geodata_password", ""))
                 .load().migrate();
         admin = JdbcClient.create(new DriverManagerDataSource(db.getJdbcUrl(), db.getUsername(), db.getPassword()));
         scraper = new DriverManagerDataSource(db.getJdbcUrl(), "scraper", "scraper-test");
