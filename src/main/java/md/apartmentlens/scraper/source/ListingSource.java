@@ -12,15 +12,16 @@ public interface ListingSource {
 
     /**
      * Goes through every ad the source currently lists for sale in the categories collected, calling
-     * {@code sink} for each. Ads may repeat when the listing shifts while it is read.
+     * {@code sink} for each: the whole ad, or the listing's summary of it (see {@link Listed}). Ads may
+     * repeat when the listing shifts while it is read.
      *
      * @return the number of ads the source says it has, or -1 when it does not say
      * @throws IOException when the listing cannot be read to the end
      */
-    int crawl(Consumer<RawAd> sink) throws IOException;
+    int crawl(Consumer<Listed> sink) throws IOException;
 
     /**
-     * Fetches one ad again: present while it is still listed for sale, empty once it is gone.
+     * Fetches one whole ad: present while it is listed for sale, empty once it is gone.
      *
      * @throws IOException when the source cannot be asked, so nothing can be concluded
      */

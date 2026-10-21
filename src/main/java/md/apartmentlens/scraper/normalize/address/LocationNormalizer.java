@@ -31,6 +31,8 @@ public final class LocationNormalizer {
     static final double MAX_LON = 30.2;
     /** A pin farther than this from the building at the given address is not on that building. */
     static final double PIN_TO_BUILDING_KM = 0.3;
+    /** A pin placed only near the property, at most this far off, still beats a district or town centre. */
+    static final int NEAR_PIN_MAX_M = 1000;
 
     private final StreetGazetteer streets;
     private final DefaultPins defaultPins;
@@ -68,6 +70,18 @@ public final class LocationNormalizer {
     private boolean onStreet(GeoPoint pin, StreetGazetteer.Street street) {
         return street != null && streets.streetsAround(pin, 0.06).stream()
                 .anyMatch(s -> s.index() == street.index() || s.name().equals(street.name()));
+    }
+
+    /**
+     * The location with a pin the site placed only near the property ({@code radiusM} off at most): used
+     * instead of a district or town centre, never instead of a building or street.
+     */
+    public Location near(Location location, GeoPoint pin, int radiusM) {
+        boolean precise = "building".equals(location.precision()) || "street".equals(location.precision());
+        if (precise || radiusM > NEAR_PIN_MAX_M) {
+            return location;
+        }
+        return new Location(pin, "pin", "district");
     }
 
     public Location locate(GeoPoint pin, AddressNormalizer.Address address, Place district, Place locality,

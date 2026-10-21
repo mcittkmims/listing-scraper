@@ -25,6 +25,7 @@ import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
+import md.apartmentlens.scraper.source.Listed;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.source.RawAd;
 import md.apartmentlens.scraper.source.SourceAd;
@@ -172,6 +173,42 @@ class CrawlServiceIT {
     }
 
     @Test
+    void anAdListedBySummaryIsFetchedWhenTheSummaryChangesAndWhenTheCopyIsAWeekOld() {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        source.summaries.put("100000001", "2 rooms, 99990 EUR");
+        crawls.crawl(source);
+        assertThat(source.fetches).isEqualTo(1);
+
+        // An edit the summary does not show waits for the weekly read...
+        clock.advance(Duration.ofHours(4));
+        source.replace("100000001", "\"value\": 99990", "\"value\": 95000");
+        CrawlStats unchanged = crawls.crawl(source).orElseThrow();
+        assertThat(source.fetches).isEqualTo(1);
+        assertThat(unchanged.seen()).isEqualTo(1);
+        assertThat(priceAmount()).isEqualTo(99990);
+
+        // ...a changed summary is read at once...
+        clock.advance(Duration.ofHours(4));
+        source.summaries.put("100000001", "2 rooms, 95000 EUR");
+        crawls.crawl(source);
+        assertThat(source.fetches).isEqualTo(2);
+        assertThat(priceAmount()).isEqualTo(95000);
+
+        // ...and a copy a week old is read again even when the summary is the same.
+        source.replace("100000001", "\"value\": 95000", "\"value\": 90000");
+        clock.advance(Duration.ofDays(8));
+        crawls.crawl(source);
+        assertThat(source.fetches).isEqualTo(3);
+        assertThat(priceAmount()).isEqualTo(90000);
+        assertThat(admin.sql("select price_amount from ingest.listing_snapshot order by captured_at")
+                .query(BigDecimal.class).list()).extracting(BigDecimal::intValue).containsExactly(99990, 95000, 90000);
+    }
+
+    private int priceAmount() {
+        return admin.sql("select price_amount from ingest.listing").query(BigDecimal.class).single().intValue();
+    }
+
+    @Test
     void adsThatDisappearAreCheckedThenMarkedGone_andCanComeBack() {
         source.put(Fixtures.ninetyNine("apartment.json"));
         source.put(Fixtures.ninetyNine("house.json"));
@@ -249,15 +286,15 @@ class CrawlServiceIT {
         java.util.concurrent.CountDownLatch stopRequested = new java.util.concurrent.CountDownLatch(1);
         FakeSource slow = new FakeSource() {
             @Override
-            public int crawl(Consumer<RawAd> sink) {
-                sink.accept(copy("apartment.json", "100000201"));
+            public int crawl(Consumer<Listed> sink) {
+                sink.accept(Listed.complete(copy("apartment.json", "100000201")));
                 firstStored.countDown();
                 try {
                     stopRequested.await();
                 } catch (InterruptedException e) {
                     throw new IllegalStateException(e);
                 }
-                sink.accept(copy("apartment.json", "100000202"));
+                sink.accept(Listed.complete(copy("apartment.json", "100000202")));
                 return 2;
             }
         };
@@ -319,6 +356,9 @@ class CrawlServiceIT {
         private final NineNineSource parser = new NineNineSource(null, Fixtures.JSON, 0);
         private final Map<String, RawAd> online = new LinkedHashMap<>();
         private final List<String> hidden = new ArrayList<>();
+        /** Ads listed only by this summary, as some sites list them. */
+        final Map<String, String> summaries = new LinkedHashMap<>();
+        int fetches;
 
         void put(RawAd ad) {
             online.put(ad.externalId(), ad);
@@ -347,13 +387,18 @@ class CrawlServiceIT {
         }
 
         @Override
-        public int crawl(Consumer<RawAd> sink) {
-            online.values().stream().filter(a -> !hidden.contains(a.externalId())).forEach(sink);
+        public int crawl(Consumer<Listed> sink) {
+            online.values().stream().filter(a -> !hidden.contains(a.externalId()))
+                    .map(a -> summaries.containsKey(a.externalId())
+                            ? Listed.summary(a.externalId(), summaries.get(a.externalId()).getBytes(StandardCharsets.UTF_8))
+                            : Listed.complete(a))
+                    .forEach(sink);
             return online.size();
         }
 
         @Override
         public Optional<RawAd> fetch(String externalId) {
+            fetches++;
             return Optional.ofNullable(online.get(externalId));
         }
 

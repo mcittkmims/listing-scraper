@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import md.apartmentlens.scraper.http.PoliteHttpClient;
+import md.apartmentlens.scraper.source.Listed;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.source.RawAd;
 import md.apartmentlens.scraper.source.SourceAd;
@@ -60,7 +61,7 @@ public class NineNineSource implements ListingSource {
     }
 
     @Override
-    public int crawl(Consumer<RawAd> sink) throws IOException {
+    public int crawl(Consumer<Listed> sink) throws IOException {
         int advertised = 0;
         for (int subCategory : SUBCATEGORIES) {
             int skip = 0;
@@ -77,7 +78,7 @@ public class NineNineSource implements ListingSource {
                     break;
                 }
                 for (JsonNode ad : ads) {
-                    sink.accept(toRaw(ad));
+                    sink.accept(Listed.complete(toRaw(ad)));
                 }
                 pages++;
                 skip += PAGE_SIZE;

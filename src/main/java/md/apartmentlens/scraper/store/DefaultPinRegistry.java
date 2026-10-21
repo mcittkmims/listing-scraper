@@ -53,7 +53,7 @@ public class DefaultPinRegistry implements DefaultPins {
                                    round(st_x(pin::geometry) * 100000)::bigint as lon,
                                    -- what sellers wrote, not a street derived from the pin itself
                                    case when street_match = 'from_pin' then null else street_name end as street_name
-                            from ingest.listing where pin is not null and status = 'active'),
+                            from ingest.listing where pin is not null and pin_radius_m is null and status = 'active'),
                         s as (select lat, lon, street_name, count(*) as n from p group by lat, lon, street_name)
                         select lat, lon from s group by lat, lon
                         having sum(n) >= ? and count(street_name) >= ? and max(n) * 2 <= sum(n)
@@ -68,7 +68,7 @@ public class DefaultPinRegistry implements DefaultPins {
                                    round(st_x(pin::geometry) * 100000)::bigint as lon,
                                    street_name, substring(house_number from '^\\d+') as base
                             from ingest.listing
-                            where pin is not null and status = 'active' and street_name is not null
+                            where pin is not null and pin_radius_m is null and status = 'active' and street_name is not null
                               and street_match not in ('from_pin', 'unresolved'))
                         select lat, lon from p group by lat, lon, street_name
                         having count(distinct coalesce(base, '')) >= ?

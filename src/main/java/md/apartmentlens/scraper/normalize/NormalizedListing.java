@@ -20,9 +20,11 @@ import md.apartmentlens.scraper.source.GeoPoint;
  * @param streetMatch how the street was recognized: exact, alias, partial, fuzzy, nearby, from_pin or unresolved
  * @param areaName a neighbourhood, complex or cottage area written where the street belongs
  * @param sellerPin the pin as the seller placed it, also when it is not used as the location
+ * @param pinRadiusM null for a pin on the property; for a pin the site placed only near it, how far off it can be
  * @param locationSource pin, address, street or place
  * @param locationPrecision building, street, district or locality
  * @param phoneHashes keyed hashes of the +373 numbers
+ * @param crosslinks the same ad on other sites, as the source names them: "999md:105689225"
  * @param issues values that could not be read, with the reason
  */
 public record NormalizedListing(
@@ -73,12 +75,14 @@ public record NormalizedListing(
         String houseNumber,
         GeoPoint point,
         GeoPoint sellerPin,
+        Integer pinRadiusM,
         String locationSource,
         String locationPrecision,
         List<byte[]> phoneHashes,
         List<String> photoKeys,
         boolean hasVideo,
         List<String> amenities,
+        List<String> crosslinks,
         List<Issue> issues) {
 
     public static Builder builder() {
@@ -135,12 +139,14 @@ public record NormalizedListing(
         private String houseNumber;
         private GeoPoint point;
         private GeoPoint sellerPin;
+        private Integer pinRadiusM;
         private String locationSource;
         private String locationPrecision;
         private List<byte[]> phoneHashes = List.of();
         private List<String> photoKeys = List.of();
         private boolean hasVideo;
         private List<String> amenities = List.of();
+        private List<String> crosslinks = List.of();
         private List<Issue> issues = List.of();
 
         private Builder() {
@@ -376,6 +382,11 @@ public record NormalizedListing(
             return this;
         }
 
+        public Builder pinRadiusM(Integer pinRadiusM) {
+            this.pinRadiusM = pinRadiusM;
+            return this;
+        }
+
         public Builder sellerPin(GeoPoint sellerPin) {
             this.sellerPin = sellerPin;
             return this;
@@ -411,13 +422,18 @@ public record NormalizedListing(
             return this;
         }
 
+        public Builder crosslinks(List<String> crosslinks) {
+            this.crosslinks = crosslinks;
+            return this;
+        }
+
         public Builder issues(List<Issue> issues) {
             this.issues = issues;
             return this;
         }
 
         public NormalizedListing build() {
-            return new NormalizedListing(propertyType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, priceAmount, priceCurrency, priceEur, pricePerM2Eur, priceNegotiable, downPayment, rooms, roomsOpenEnded, hasLivingRoom, areaTotalM2, areaLivingM2, areaKitchenM2, landAreaM2, floor, floorKind, floorsTotal, bathrooms, balconies, ceilingHeightM, housingStock, buildingMaterial, buildingSeries, condition, developer, parking, region, locality, district, regionCode, localityCode, districtCode, streetRaw, houseNumberRaw, streetType, streetName, streetMatch, areaName, houseNumber, point, sellerPin, locationSource, locationPrecision, phoneHashes, photoKeys, hasVideo, amenities, issues);
+            return new NormalizedListing(propertyType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, priceAmount, priceCurrency, priceEur, pricePerM2Eur, priceNegotiable, downPayment, rooms, roomsOpenEnded, hasLivingRoom, areaTotalM2, areaLivingM2, areaKitchenM2, landAreaM2, floor, floorKind, floorsTotal, bathrooms, balconies, ceilingHeightM, housingStock, buildingMaterial, buildingSeries, condition, developer, parking, region, locality, district, regionCode, localityCode, districtCode, streetRaw, houseNumberRaw, streetType, streetName, streetMatch, areaName, houseNumber, point, sellerPin, pinRadiusM, locationSource, locationPrecision, phoneHashes, photoKeys, hasVideo, amenities, crosslinks, issues);
         }
     }
 }

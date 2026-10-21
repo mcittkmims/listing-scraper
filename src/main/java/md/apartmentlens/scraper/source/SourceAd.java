@@ -25,10 +25,12 @@ import java.util.Set;
  * @param condition e.g. "Variantă albă", "Euroreparație"
  * @param street street as typed by the seller
  * @param houseNumber house number as typed by the seller
- * @param pin map point placed by the seller
+ * @param pin map point placed by the seller, or by the site near the property
+ * @param pinRadiusM null for a pin on the property; for a pin the site placed only near it, how far off it can be
  * @param phones phone numbers as published
  * @param photoKeys source photo ids, in order
  * @param amenities amenity codes, see Amenity
+ * @param crosslinks the same ad on other sites, as the source names them: "999md:105689225"
  */
 public record SourceAd(
         String externalId,
@@ -66,10 +68,12 @@ public record SourceAd(
         String street,
         String houseNumber,
         GeoPoint pin,
+        Integer pinRadiusM,
         List<String> phones,
         List<String> photoKeys,
         boolean hasVideo,
         Set<String> amenities,
+        List<String> crosslinks,
         Instant postedAt,
         Instant republishedAt) {
 
@@ -115,10 +119,12 @@ public record SourceAd(
         private String street;
         private String houseNumber;
         private GeoPoint pin;
+        private Integer pinRadiusM;
         private List<String> phones = List.of();
         private List<String> photoKeys = List.of();
         private boolean hasVideo;
         private Set<String> amenities = Set.of();
+        private List<String> crosslinks = List.of();
         private Instant postedAt;
         private Instant republishedAt;
 
@@ -300,6 +306,11 @@ public record SourceAd(
             return this;
         }
 
+        public Builder pinRadiusM(Integer pinRadiusM) {
+            this.pinRadiusM = pinRadiusM;
+            return this;
+        }
+
         public Builder phones(List<String> phones) {
             this.phones = phones;
             return this;
@@ -320,6 +331,11 @@ public record SourceAd(
             return this;
         }
 
+        public Builder crosslinks(List<String> crosslinks) {
+            this.crosslinks = crosslinks;
+            return this;
+        }
+
         public Builder postedAt(Instant postedAt) {
             this.postedAt = postedAt;
             return this;
@@ -331,7 +347,7 @@ public record SourceAd(
         }
 
         public SourceAd build() {
-            return new SourceAd(externalId, url, category, offerType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, price, rooms, livingRoom, propertyType, areaTotal, areaLiving, areaKitchen, landArea, ceilingHeight, floor, floorsTotal, housingStock, buildingMaterial, layout, condition, developer, bathrooms, balconies, parking, region, locality, district, street, houseNumber, pin, phones, photoKeys, hasVideo, amenities, postedAt, republishedAt);
+            return new SourceAd(externalId, url, category, offerType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, price, rooms, livingRoom, propertyType, areaTotal, areaLiving, areaKitchen, landArea, ceilingHeight, floor, floorsTotal, housingStock, buildingMaterial, layout, condition, developer, bathrooms, balconies, parking, region, locality, district, street, houseNumber, pin, pinRadiusM, phones, photoKeys, hasVideo, amenities, crosslinks, postedAt, republishedAt);
         }
     }
 }

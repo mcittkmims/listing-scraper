@@ -131,20 +131,30 @@ public final class ListingNormalizer {
             issues.add("locality", localityLabel, "not_in_gazetteer");
         }
         GeoPoint pin = locations.checkPin(ad.pin(), place, issues);
+        // A pin the site placed only near the property never picks a street or a building; it places the ad
+        // only when nothing more precise is known.
+        boolean approximate = ad.pinRadiusM() != null;
+        GeoPoint onProperty = approximate ? null : pin;
         Place districtPlace = places.district(districtLabel, place).orElse(null);
-        AddressNormalizer.Address address = addresses.normalize(ad.street(), ad.houseNumber(), place, pin, issues);
-        LocationNormalizer.Location location = locations.locate(pin, address, districtPlace, place, issues);
+        AddressNormalizer.Address address = addresses.normalize(ad.street(), ad.houseNumber(), place, onProperty,
+                issues);
+        LocationNormalizer.Location location = locations.locate(onProperty, address, districtPlace, place, issues);
+        if (approximate && pin != null) {
+            location = locations.near(location, pin, ad.pinRadiusM());
+        }
         out.streetRaw(Text.clean(ad.street())).houseNumberRaw(Text.clean(ad.houseNumber()))
                 .streetType(address.streetType()).streetName(address.streetName())
                 .streetMatch(address.streetMatch()).areaName(address.areaName()).houseNumber(address.houseNumber())
-                .point(location.point()).sellerPin(ad.pin()).locationSource(location.source())
+                .point(location.point()).sellerPin(ad.pin()).pinRadiusM(ad.pinRadiusM())
+                .locationSource(location.source())
                 .locationPrecision(location.precision());
 
         // Contacts and media
         out.phoneHashes(phones.hashes(ad.phones(), issues))
                 .photoKeys(List.copyOf(ad.photoKeys()))
                 .hasVideo(ad.hasVideo())
-                .amenities(ad.amenities().stream().sorted().toList());
+                .amenities(ad.amenities().stream().sorted().toList())
+                .crosslinks(List.copyOf(ad.crosslinks()));
 
         return out.issues(issues.list()).build();
     }

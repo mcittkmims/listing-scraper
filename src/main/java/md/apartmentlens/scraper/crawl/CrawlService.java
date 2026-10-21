@@ -21,6 +21,7 @@ import java.util.function.LongSupplier;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.NormalizedListing;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
+import md.apartmentlens.scraper.source.Listed;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.source.RawAd;
 import md.apartmentlens.scraper.source.SourceAd;
@@ -38,12 +39,16 @@ import org.springframework.transaction.support.TransactionTemplate;
  * and a price snapshot written when the price or status changed. After a complete pass, active ads that
  * were not seen are fetched one by one: still listed (missed while the listing shifted) or gone.
  *
+ * <p>Where the listing shows only a summary of each ad, the whole ad is fetched when the summary changed,
+ * and at least every {@link #DETAIL_MAX_AGE}, so edits the summary does not show are found too.
+ *
  * <p>Each ad is handled in its own transaction, so one bad ad never stops a run.
  */
 public class CrawlService implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(CrawlService.class);
     static final ZoneId MOLDOVA = ZoneId.of("Europe/Chisinau");
+    static final Duration DETAIL_MAX_AGE = Duration.ofDays(7);
 
     /** Limits that protect against marking ads gone after a short or broken pass. */
     public record Safety(Duration staleRunAfter, double minSeenShare, double maxGoneShare) {
@@ -162,7 +167,7 @@ public class CrawlService implements AutoCloseable {
             try {
                 Optional<RawAd> raw = run.source.fetch(u.externalId());
                 if (raw.isPresent()) {
-                    run.accept(raw.get());
+                    run.accept(Listed.complete(raw.get()));
                 } else {
                     tx.executeWithoutResult(s -> {
                         Instant now = clock.instant();
@@ -200,23 +205,50 @@ public class CrawlService implements AutoCloseable {
             this.today = today;
         }
 
-        void accept(RawAd raw) {
+        void accept(Listed listed) {
             if (stopping) {
                 throw new CancellationException("the service is stopping");
             }
-            if (!seen.add(raw.externalId())) {
+            if (!seen.add(listed.externalId())) {
                 return; // listed twice because the listing shifted while it was read
             }
             stats.countSeen();
             try {
-                tx.executeWithoutResult(s -> store(raw));
-            } catch (RuntimeException e) {
+                RawAd raw = listed.ad();
+                byte[] summarySha = listed.summary() == null ? null : Bytes.sha256(listed.summary());
+                if (raw == null) {
+                    Optional<Stored> stored = listings.find(sourceId, listed.externalId());
+                    if (stored.isPresent() && upToDate(stored.get(), summarySha)) {
+                        listings.touch(stored.get().id(), clock.instant(), null);
+                        return;
+                    }
+                    Optional<RawAd> fetched = source.fetch(listed.externalId());
+                    if (fetched.isEmpty()) {
+                        // Listed, but no longer there when asked for: the next pass sees which holds.
+                        log.info("{} ad {}: listed but could not be fetched", source.code(), listed.externalId());
+                        return;
+                    }
+                    raw = fetched.get();
+                }
+                RawAd ad = raw;
+                tx.executeWithoutResult(s -> store(ad, summarySha));
+            } catch (IOException | RuntimeException e) {
                 stats.countError();
-                log.warn("{} ad {}: not stored: {}", source.code(), raw.externalId(), e.toString(), e);
+                log.warn("{} ad {}: not stored: {}", source.code(), listed.externalId(), e.toString(), e);
             }
         }
 
-        private void store(RawAd raw) {
+        /** The stored copy of a summary-listed ad needs no new fetch. */
+        private boolean upToDate(Stored s, byte[] summarySha) {
+            return s.status().equals("active") && Arrays.equals(s.summarySha256(), summarySha)
+                    && s.normalizerVersion() == ListingNormalizer.VERSION && s.detailFetchedAt() != null
+                    && s.detailFetchedAt().isAfter(clock.instant().minus(DETAIL_MAX_AGE));
+        }
+
+        /**
+         * @param summarySha the listing's summary of the ad, for sources that list summaries; null otherwise
+         */
+        private void store(RawAd raw, byte[] summarySha) {
             byte[] sha = Bytes.sha256(source.stableContent(raw));
             SourceAd ad = source.parse(raw);
             Instant now = clock.instant();
@@ -224,7 +256,7 @@ public class CrawlService implements AutoCloseable {
             if (stored.isEmpty()) {
                 NormalizedListing n = normalizer.normalize(ad, today);
                 long listingId = listings.insert(sourceId, ad.externalId(), ad.url(), n, now, ad.postedAt(),
-                        ad.republishedAt(), sha, ListingNormalizer.VERSION);
+                        ad.republishedAt(), sha, summarySha, ListingNormalizer.VERSION);
                 listings.insertRaw(listingId, id, now, sha, Bytes.gzip(raw.body()));
                 listings.insertSnapshot(listingId, id, now, "active", n.priceAmount(), n.priceCurrency(), n.priceEur());
                 stats.countAdded();
@@ -235,10 +267,12 @@ public class CrawlService implements AutoCloseable {
             boolean reappeared = s.status().equals("gone");
             if (!contentChanged && !reappeared && s.normalizerVersion() == ListingNormalizer.VERSION) {
                 listings.touch(s.id(), now, ad.republishedAt());
+                listings.fetched(s.id(), now, summarySha);
                 return;
             }
             NormalizedListing n = normalizer.normalize(ad, today);
             listings.update(s.id(), n, now, ad.postedAt(), ad.republishedAt(), sha, ListingNormalizer.VERSION);
+            listings.fetched(s.id(), now, summarySha);
             if (contentChanged) {
                 listings.insertRaw(s.id(), id, now, sha, Bytes.gzip(raw.body()));
                 stats.countChanged();

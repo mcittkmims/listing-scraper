@@ -10,6 +10,11 @@ import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
+import md.apartmentlens.scraper.source.Coded;
+import md.apartmentlens.scraper.source.GeoPoint;
+import md.apartmentlens.scraper.source.RawPrice;
+import md.apartmentlens.scraper.source.SourceAd;
+import md.apartmentlens.scraper.source.SourceCategory;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -88,5 +93,36 @@ class ListingNormalizerTest {
         // Living area 120 m² in a 100 m² house contradicts itself and is dropped.
         assertThat(l.areaLivingM2()).isNull();
         assertThat(l.issues()).extracting(Issue::reason).contains("larger_than_total");
+    }
+
+    @Test
+    void aPinPlacedOnlyNearThePropertyNeverPicksTheStreetOrTheBuilding() {
+        GeoPoint nearDacia = new GeoPoint(46.9895, 28.8570);
+        // With an address, the address places the ad; the pin is not taken as the building.
+        NormalizedListing withAddress = normalizer.normalize(agencyAd("bd. Dacia", "47/2", nearDacia, 300),
+                LocalDate.of(2026, 10, 19));
+        assertThat(withAddress.streetName()).isEqualTo("Dacia");
+        assertThat(withAddress.locationSource()).isEqualTo("address");
+        assertThat(withAddress.locationPrecision()).isEqualTo("building");
+        assertThat(withAddress.pinRadiusM()).isEqualTo(300);
+
+        // Without a street, no street is taken from the pin; the pin places the ad roughly.
+        NormalizedListing withoutStreet = normalizer.normalize(agencyAd(null, null, nearDacia, 300),
+                LocalDate.of(2026, 10, 19));
+        assertThat(withoutStreet.streetName()).isNull();
+        assertThat(withoutStreet.locationSource()).isEqualTo("pin");
+        assertThat(withoutStreet.locationPrecision()).isEqualTo("district");
+
+        // A circle wider than a kilometre is no better than the town centre.
+        NormalizedListing wide = normalizer.normalize(agencyAd(null, null, nearDacia, 5000),
+                LocalDate.of(2026, 10, 19));
+        assertThat(wide.locationSource()).isEqualTo("place");
+    }
+
+    private static SourceAd agencyAd(String street, String number, GeoPoint pin, int radiusM) {
+        return SourceAd.builder().externalId("1").url("https://example.md/1").category(SourceCategory.APARTMENTS)
+                .offerType("Vânzare").rooms("2").price(new RawPrice(new BigDecimal("80000"), "EUR", null, null, null))
+                .region(new Coded(null, "Chișinău")).locality(new Coded(null, "Chișinău"))
+                .street(street).houseNumber(number).pin(pin).pinRadiusM(radiusM).build();
     }
 }

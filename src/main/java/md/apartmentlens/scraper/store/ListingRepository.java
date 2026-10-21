@@ -25,7 +25,7 @@ public class ListingRepository {
 
     /** The stored state of an ad, enough to tell what changed. */
     public record Stored(long id, String status, byte[] contentSha256, int normalizerVersion,
-                         BigDecimal priceAmount, String priceCurrency) {
+                         BigDecimal priceAmount, String priceCurrency, byte[] summarySha256, Instant detailFetchedAt) {
     }
 
     /** An ad to check again: active, but not seen by the current pass; with its last price. */
@@ -87,16 +87,17 @@ public class ListingRepository {
         COLUMNS.put("house_number", NormalizedListing::houseNumber);
         COLUMNS.put("location_source", NormalizedListing::locationSource);
         COLUMNS.put("location_precision", NormalizedListing::locationPrecision);
+        COLUMNS.put("pin_radius_m", NormalizedListing::pinRadiusM);
         COLUMNS.put("has_video", NormalizedListing::hasVideo);
     }
 
     /** Columns that need an SQL expression around their parameter. */
-    private static final String SPECIAL_COLUMNS = "geom, pin, phone_hashes, photo_keys, amenities, issues";
+    private static final String SPECIAL_COLUMNS = "geom, pin, phone_hashes, photo_keys, amenities, crosslinks, issues";
     private static final String GEOM_VALUE = "case when cast(:lat as double precision) is null then null else "
             + "st_setsrid(st_makepoint(cast(:lon as double precision), cast(:lat as double precision)), 4326)::geography end";
     private static final String PIN_VALUE = GEOM_VALUE.replace(":lat", ":pin_lat").replace(":lon", ":pin_lon");
     private static final String SPECIAL_VALUES = GEOM_VALUE + ", " + PIN_VALUE
-            + ", :phone_hashes, :photo_keys, :amenities, cast(:issues as jsonb)";
+            + ", :phone_hashes, :photo_keys, :amenities, :crosslinks, cast(:issues as jsonb)";
 
     private final JdbcClient jdbc;
     private final JsonMapper json;
@@ -108,18 +109,22 @@ public class ListingRepository {
 
     public Optional<Stored> find(short sourceId, String externalId) {
         return jdbc.sql("""
-                        select id, status, content_sha256, normalizer_version, price_amount, price_currency
+                        select id, status, content_sha256, normalizer_version, price_amount, price_currency,
+                               summary_sha256, detail_fetched_at
                         from ingest.listing where source_id = ? and external_id = ?
                         """)
                 .params(sourceId, externalId)
                 .query((rs, i) -> new Stored(rs.getLong(1), rs.getString(2), rs.getBytes(3), rs.getInt(4),
-                        rs.getBigDecimal(5), rs.getString(6)))
+                        rs.getBigDecimal(5), rs.getString(6), rs.getBytes(7),
+                        rs.getTimestamp(8) == null ? null : rs.getTimestamp(8).toInstant()))
                 .optional();
     }
 
     public long insert(short sourceId, String externalId, String url, NormalizedListing l, Instant seenAt,
-                       Instant postedAt, Instant republishedAt, byte[] contentSha256, int normalizerVersion) {
+                       Instant postedAt, Instant republishedAt, byte[] contentSha256, byte[] summarySha256,
+                       int normalizerVersion) {
         MapSqlParameterSource p = params(l)
+                .addValue("summary_sha256", summarySha256)
                 .addValue("source_id", sourceId)
                 .addValue("external_id", externalId)
                 .addValue("url", url)
@@ -131,9 +136,11 @@ public class ListingRepository {
         String columns = String.join(", ", COLUMNS.keySet());
         String values = COLUMNS.keySet().stream().map(c -> ":" + c).collect(Collectors.joining(", "));
         return jdbc.sql("insert into ingest.listing (source_id, external_id, url, status, first_seen_at, last_seen_at, "
-                        + "posted_at, republished_at, content_sha256, normalizer_version, normalized_at, " + columns + ", "
+                        + "posted_at, republished_at, content_sha256, summary_sha256, detail_fetched_at, "
+                        + "normalizer_version, normalized_at, " + columns + ", "
                         + SPECIAL_COLUMNS + ") values (:source_id, :external_id, :url, 'active', :seen, :seen, "
-                        + ":posted_at, :republished_at, :content_sha256, :normalizer_version, now(), " + values + ", "
+                        + ":posted_at, :republished_at, :content_sha256, :summary_sha256, :seen, "
+                        + ":normalizer_version, now(), " + values + ", "
                         + SPECIAL_VALUES + ") returning id")
                 .paramSource(p).query(Long.class).single();
     }
@@ -151,6 +158,7 @@ public class ListingRepository {
         String sets = COLUMNS.keySet().stream().map(c -> c + " = :" + c).collect(Collectors.joining(", "));
         jdbc.sql("update ingest.listing set " + sets + ", geom = " + GEOM_VALUE + ", pin = " + PIN_VALUE
                         + ", phone_hashes = :phone_hashes, photo_keys = :photo_keys, amenities = :amenities, "
+                        + "crosslinks = :crosslinks, "
                         + "issues = cast(:issues as jsonb), content_sha256 = :content_sha256, "
                         + "normalizer_version = :normalizer_version, normalized_at = now(), "
                         + "posted_at = coalesce(:posted_at, posted_at), "
@@ -170,6 +178,15 @@ public class ListingRepository {
                         where id = ?
                         """)
                 .params(Timestamp.from(seenAt), timestamp(republishedAt), id).update();
+    }
+
+    /**
+     * The whole ad was read from the source now; for a source that lists summaries, also the summary it
+     * was listed with (a null summary keeps the stored one).
+     */
+    public void fetched(long id, Instant at, byte[] summarySha256) {
+        jdbc.sql("update ingest.listing set detail_fetched_at = ?, summary_sha256 = coalesce(?, summary_sha256) where id = ?")
+                .params(Timestamp.from(at), summarySha256, id).update();
     }
 
     public void markGone(long id, Instant at) {
@@ -278,6 +295,7 @@ public class ListingRepository {
         p.addValue("phone_hashes", array("bytea", l.phoneHashes().toArray(new byte[0][])), Types.ARRAY);
         p.addValue("photo_keys", array("text", l.photoKeys().toArray(new String[0])), Types.ARRAY);
         p.addValue("amenities", array("text", l.amenities().toArray(new String[0])), Types.ARRAY);
+        p.addValue("crosslinks", array("text", l.crosslinks().toArray(new String[0])), Types.ARRAY);
         p.addValue("issues", json.writeValueAsString(l.issues()));
         return p;
     }
