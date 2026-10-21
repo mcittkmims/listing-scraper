@@ -2,7 +2,7 @@
 
 Collects ads for [Apartment Lens](https://github.com/mcittkmims/apartment-lens) from 999.md and real-estate agency websites and turns them into clean, comparable data. It runs as its own process, so a crash or a block never affects the website.
 
-> **Status:** 999.md (flats, houses and country houses for sale) is collected. Agency websites follow.
+> **Status:** flats and houses for sale are collected from 999.md and Proimobil. More agency websites follow.
 
 ## How it works
 
@@ -12,7 +12,14 @@ source → source parser → shared normalizer → database
 
 Every four hours the service reads every ad of each source. It stores new ads, keeps the original content of an ad whenever it changes, and adds a price snapshot when the price or status changes. Ads missing from a pass are checked one by one and marked gone only when they really are; a pass that looks too short marks nothing gone.
 
-999.md is read through the same JSON API its website uses. Each agency website will get its own small parser.
+Each source has its own small parser; everything after it is shared.
+
+| Source | Read through | Notes |
+|---|---|---|
+| 999.md | The JSON API of its website | Flats, houses and country houses; the seller's pin |
+| Proimobil | The JSON API of its website | Names its copy of each ad on 999.md; sold ads and properties in Romania are left out |
+
+Where a site lists only a summary of each ad, the whole ad is read when the summary changes, and at least once a week. Private data a site returns but does not publish (an owner's phone, agents' notes) is removed before anything is stored.
 
 ## Normalization
 
@@ -31,7 +38,7 @@ Streets and house numbers come from the cadastre's official register (35,000 str
 
 ## Running
 
-The service runs from the main repository with `docker compose up -d`. It can also be run once: `crawl` does one pass, and `renormalize` applies new normalization rules to the stored content without crawling. Tests need Docker: `./gradlew test`.
+The service runs from the main repository with `docker compose up -d`. It can also be run once: `crawl` does one pass, and `renormalize` applies new normalization rules to the stored content without crawling; both take source names (`crawl proimobil`). Tests need Docker: `./gradlew test`.
 
 ## Data and technology
 

@@ -1,0 +1,383 @@
+{
+  "999": {
+    "id": "100000101",
+    "credentialId": "00000000-0000-4000-8000-0000000000aa",
+    "regionId": "r",
+    "cityId": "c",
+    "sectorId": "s",
+    "title": "Apartament spre vânzare cu 3 camere, 66 m2 în Chișinău, Botanica",
+    "description": "text of the 999.md ad"
+  },
+  "id": "00000000-0000-4000-8000-000000000001",
+  "surrogateId": 900001,
+  "regionId": "fe287ed8-5d64-4070-bbe3-df86e8b13290",
+  "cityId": "a36a231f-a54e-43e3-8c72-2c9204bc9a59",
+  "complexId": null,
+  "agentIds": [
+    "00000000-0000-4000-8000-000000000110"
+  ],
+  "featureIds": [],
+  "offer": "sell",
+  "category": "apartment",
+  "status": "active",
+  "owner": {
+    "fullName": "Test Owner",
+    "phone": "069000000",
+    "publish": false
+  },
+  "isHot": false,
+  "isExclusive": false,
+  "isInCredit": true,
+  "deal": false,
+  "booked": false,
+  "order": 0,
+  "views": 7,
+  "price": {
+    "amount": 122900,
+    "currency": "€"
+  },
+  "oldPrice": null,
+  "monthlyPrice": null,
+  "withoutVAT": false,
+  "hidePrice": false,
+  "investmentOpportunityProfit": null,
+  "surface": {
+    "value": 66,
+    "units": "m2"
+  },
+  "livingSurface": null,
+  "kitchenSurface": null,
+  "balconySurface": null,
+  "atticSurface": null,
+  "workingSurface": null,
+  "landSurface": null,
+  "bonitetSurface": null,
+  "ceilingHeight": 0,
+  "floor": 9,
+  "numberOfFloors": 10,
+  "rooms": 3,
+  "bathrooms": 2,
+  "bedrooms": 3,
+  "balcony": 1,
+  "base": null,
+  "type": null,
+  "layout": "143",
+  "state": "euro",
+  "parking": "open",
+  "condition": "old",
+  "apartmentNumber": null,
+  "image": "cover-1.jpeg",
+  "gallery": [
+    "photo-1-1.jpeg",
+    "photo-1-2.jpeg"
+  ],
+  "plannings": [],
+  "documents": [],
+  "assets": {
+    "image": {
+      "md": "https://images.proimobil.md/signed/cover-1"
+    },
+    "gallery": {
+      "md": [
+        "https://images.proimobil.md/signed/photo-1-1"
+      ]
+    }
+  },
+  "i18n": {
+    "ro": {
+      "url": "vinzare-chisinau-botanica-dacia-4cd3b",
+      "address": "Dacia",
+      "description": "<p><span style=\"font-family: Arial\">Vă propunem spre&nbsp;vânzare acest apartament cu <strong>3 camere</strong>.</span></p><p>Bloc seria 143.<br>Reparație euro.</p>",
+      "characteristics": [
+        {
+          "name": "Suprafața totală",
+          "value": "66 m2"
+        },
+        {
+          "name": "Tip ofertă",
+          "value": "Vânzare"
+        },
+        {
+          "name": "Camere",
+          "value": "3"
+        },
+        {
+          "name": "Starea",
+          "value": "Reparație euro"
+        },
+        {
+          "name": "Grup sanitar",
+          "value": "2"
+        },
+        {
+          "name": "Tip construcție",
+          "value": "Veche"
+        },
+        {
+          "name": "Etaj",
+          "value": "9"
+        },
+        {
+          "name": "Etaje",
+          "value": "10"
+        },
+        {
+          "name": "Balcon",
+          "value": "1"
+        },
+        {
+          "name": "Dormitoare",
+          "value": "3"
+        },
+        {
+          "name": "Înălțimea tavanului",
+          "value": "0.00"
+        },
+        {
+          "name": "Planul clădirii",
+          "value": "143"
+        },
+        {
+          "name": "Loc de parcare",
+          "value": "Deschisă"
+        }
+      ],
+      "features": [
+        {
+          "id": "f662ed85-f044-4680-b703-126ba30ea814",
+          "name": "Gata pentru intrarea"
+        },
+        {
+          "id": "55c334f1-bc63-49d9-a61f-3cb0acb22496",
+          "name": "Mobilat"
+        },
+        {
+          "id": "67955982-18df-4db5-8232-68e4f2b4eb52",
+          "name": "Încălzire autonomă"
+        },
+        {
+          "id": "714f84eb-1033-4f54-9030-69847c44701b",
+          "name": "Geamuri"
+        },
+        {
+          "id": "cba1ccc9-28b8-4f64-9c44-121c534556f3",
+          "name": "Ușă blindată"
+        },
+        {
+          "id": "4ec9cdc8-e076-433f-ab74-69f67eaf378b",
+          "name": "Lift"
+        },
+        {
+          "id": "c51364eb-8ea7-49ed-a8df-49eea20f33c8",
+          "name": "Zona de parcare"
+        },
+        {
+          "id": "9cb9f4ce-3bad-4507-bea1-10e5810c2c67",
+          "name": "Grădiniţă"
+        },
+        {
+          "id": "daeb97a8-8b4e-45bb-8e7f-c3703b4bf833",
+          "name": "Piaţă alimentară"
+        },
+        {
+          "id": "53eac1a6-69fd-4b53-b965-adecd0444db8",
+          "name": "Teren de joaca"
+        },
+        {
+          "id": "8ec15f99-b42d-4cc9-b2d9-142909b84b3d",
+          "name": "Şcoală"
+        },
+        {
+          "id": "a138f10c-3791-40d4-b8f6-295f73780888",
+          "name": "Supermarket"
+        }
+      ],
+      "faq": [],
+      "meta": {
+        "title": "Se vinde apartament cu 3 camera în Chișinău, sectorul Botanica, surapafa de 66",
+        "keywords": "",
+        "description": "Vânzare apartament cu 3 cameră în Chișinău, Botanica, 66, Dacia. Cumpărarea apartamentelor. Achitarea flexibilă în rate și ipotecă."
+      }
+    },
+    "ru": {
+      "url": "prodazha-kishinyov-botanika-dachiya-4cd3b",
+      "address": "Дачия",
+      "description": "<p>Предлагаем&nbsp;квартиру с <strong>3 комнатами</strong>.</p>",
+      "characteristics": [
+        {
+          "name": "Общая площадь",
+          "value": "66 m2"
+        },
+        {
+          "name": "Тип предложения",
+          "value": "Продажа"
+        },
+        {
+          "name": "Комнат",
+          "value": "3"
+        },
+        {
+          "name": "Состояние",
+          "value": "Евроремонт"
+        },
+        {
+          "name": "Санузел",
+          "value": "2"
+        },
+        {
+          "name": "Тип строения",
+          "value": "Старое"
+        },
+        {
+          "name": "Этаж",
+          "value": "9"
+        },
+        {
+          "name": "Этажность",
+          "value": "10"
+        },
+        {
+          "name": "Балкон / Лоджия ",
+          "value": "1"
+        },
+        {
+          "name": "Спальни",
+          "value": "3"
+        },
+        {
+          "name": "Высота потолков",
+          "value": "0.00"
+        },
+        {
+          "name": "Планировка",
+          "value": "143"
+        },
+        {
+          "name": "Парковочное место",
+          "value": "Открытое"
+        }
+      ],
+      "features": [
+        {
+          "id": "f662ed85-f044-4680-b703-126ba30ea814",
+          "name": "Готова к вьезду"
+        },
+        {
+          "id": "55c334f1-bc63-49d9-a61f-3cb0acb22496",
+          "name": "Меблирована"
+        },
+        {
+          "id": "67955982-18df-4db5-8232-68e4f2b4eb52",
+          "name": "Автономное отопление"
+        },
+        {
+          "id": "714f84eb-1033-4f54-9030-69847c44701b",
+          "name": "Стеклопакет"
+        },
+        {
+          "id": "cba1ccc9-28b8-4f64-9c44-121c534556f3",
+          "name": "Бронированная дверь"
+        },
+        {
+          "id": "4ec9cdc8-e076-433f-ab74-69f67eaf378b",
+          "name": "Лифт"
+        },
+        {
+          "id": "c51364eb-8ea7-49ed-a8df-49eea20f33c8",
+          "name": "Парковая зона"
+        },
+        {
+          "id": "9cb9f4ce-3bad-4507-bea1-10e5810c2c67",
+          "name": "Детский сад"
+        },
+        {
+          "id": "daeb97a8-8b4e-45bb-8e7f-c3703b4bf833",
+          "name": "Продуктовый рынок"
+        },
+        {
+          "id": "53eac1a6-69fd-4b53-b965-adecd0444db8",
+          "name": "Детская площадка"
+        },
+        {
+          "id": "8ec15f99-b42d-4cc9-b2d9-142909b84b3d",
+          "name": "Школа"
+        },
+        {
+          "id": "a138f10c-3791-40d4-b8f6-295f73780888",
+          "name": "Супермаркет"
+        }
+      ],
+      "faq": [],
+      "meta": {
+        "title": "Продается 3 комнатная квартира в Кишиневе, сектор Ботаника, площадь 66",
+        "keywords": "",
+        "description": "Продажа 3 комнатных квартир в Кишинёве, Ботаника, 66, Дачия. Покупка квартир. Гибкие условия оплаты и ставки по ипотечным кредитам."
+      }
+    }
+  },
+  "updatedAt": "2026-10-21T07:33:55.000Z",
+  "createdAt": "2026-10-20T13:39:47.000Z",
+  "_embedded": {
+    "region": {
+      "id": "fe287ed8-5d64-4070-bbe3-df86e8b13290",
+      "surrogateId": 2,
+      "cityId": "a36a231f-a54e-43e3-8c72-2c9204bc9a59",
+      "i18n": {
+        "ro": {
+          "name": "Botanica"
+        },
+        "ru": {
+          "name": "Ботаника"
+        }
+      },
+      "createdAt": "2024-05-28T16:50:10.000Z",
+      "updatedAt": "2024-05-28T16:50:10.000Z"
+    },
+    "city": {
+      "id": "a36a231f-a54e-43e3-8c72-2c9204bc9a59",
+      "surrogateId": 1,
+      "i18n": {
+        "ro": {
+          "name": "Chișinău"
+        },
+        "ru": {
+          "name": "Кишинёв"
+        }
+      },
+      "createdAt": "2024-05-28T16:50:00.000Z",
+      "updatedAt": "2024-05-28T16:50:00.000Z"
+    },
+    "agents": [
+      {
+        "id": "00000000-0000-4000-8000-000000000110",
+        "internalId": 1,
+        "surrogateId": 1001,
+        "phone": "060000001",
+        "email": "agent@example.md",
+        "notes": "private note",
+        "propertyIds": [
+          "x",
+          "y"
+        ],
+        "rating": 5,
+        "votes": 3,
+        "position": "a9a182b6-3c48-44ed-90be-b1acd82ef381",
+        "positionId": "a9a182b6-3c48-44ed-90be-b1acd82ef381",
+        "regionId": "266031d0-90f4-4ba0-8a74-e14b8f01bc5d",
+        "region": "266031d0-90f4-4ba0-8a74-e14b8f01bc5d",
+        "image": null,
+        "assets": {},
+        "i18n": {
+          "ro": {
+            "name": "Agent Test",
+            "about": ""
+          },
+          "ru": {
+            "name": "Агент Тест",
+            "about": ""
+          }
+        }
+      }
+    ]
+  }
+}

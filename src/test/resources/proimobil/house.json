@@ -1,0 +1,373 @@
+{
+  "999": {
+    "id": "100000102",
+    "credentialId": "00000000-0000-4000-8000-0000000000aa",
+    "regionId": "r",
+    "cityId": "c",
+    "sectorId": "s",
+    "title": "Casă spre vânzare cu 3 camere, 150 m2 în Criuleni, Criuleni",
+    "description": "text of the 999.md ad"
+  },
+  "id": "00000000-0000-4000-8000-000000000002",
+  "surrogateId": 900002,
+  "regionId": "3bb01a21-300c-431a-a5cb-bc678b93ecc0",
+  "cityId": "e967e46e-af68-496a-9f1c-5fc4e56a5366",
+  "complexId": null,
+  "agentIds": [
+    "00000000-0000-4000-8000-000000000120"
+  ],
+  "featureIds": [],
+  "offer": "sell",
+  "category": "house",
+  "status": "active",
+  "owner": {
+    "fullName": "Test Owner",
+    "phone": "069000000",
+    "publish": false
+  },
+  "isHot": true,
+  "isExclusive": false,
+  "isInCredit": true,
+  "deal": false,
+  "booked": false,
+  "order": 0,
+  "views": 7,
+  "price": {
+    "amount": 159900,
+    "currency": "€"
+  },
+  "oldPrice": null,
+  "monthlyPrice": null,
+  "withoutVAT": false,
+  "hidePrice": false,
+  "investmentOpportunityProfit": null,
+  "surface": {
+    "value": 150,
+    "units": "m2"
+  },
+  "livingSurface": null,
+  "kitchenSurface": null,
+  "balconySurface": null,
+  "atticSurface": null,
+  "workingSurface": null,
+  "landSurface": {
+    "value": 30,
+    "units": "m2"
+  },
+  "bonitetSurface": null,
+  "ceilingHeight": 0,
+  "floor": null,
+  "numberOfFloors": 1,
+  "rooms": 3,
+  "bathrooms": 1,
+  "bedrooms": 3,
+  "balcony": null,
+  "base": null,
+  "type": null,
+  "layout": null,
+  "state": "living",
+  "parking": null,
+  "condition": "old",
+  "apartmentNumber": null,
+  "image": "cover-2.jpeg",
+  "gallery": [
+    "photo-2-1.jpeg",
+    "photo-2-2.jpeg"
+  ],
+  "plannings": [],
+  "documents": [
+    "eb853a62-114a-43f7-b00b-12e0dbda938a.jpeg",
+    "153877a2-829a-4d69-9ae8-3aaead518468.jpeg"
+  ],
+  "assets": {
+    "image": {
+      "md": "https://images.proimobil.md/signed/cover-2"
+    },
+    "gallery": {
+      "md": [
+        "https://images.proimobil.md/signed/photo-2-1"
+      ]
+    }
+  },
+  "i18n": {
+    "ro": {
+      "url": "vinzare-criuleni-criuleni-hrusova-1ac18",
+      "address": "Hrușova",
+      "description": "<p>Vă propunem spre vânzare această casă în <strong>Criuleni, s. Hrușova</strong>.</p>",
+      "characteristics": [
+        {
+          "name": "Suprafața totală",
+          "value": "150 m2"
+        },
+        {
+          "name": "Tip ofertă",
+          "value": "Vânzare"
+        },
+        {
+          "name": "Camere",
+          "value": "3"
+        },
+        {
+          "name": "Starea",
+          "value": "Stare locativă"
+        },
+        {
+          "name": "Grup sanitar",
+          "value": "1"
+        },
+        {
+          "name": "Tip construcție",
+          "value": "Veche"
+        },
+        {
+          "name": "Suprafaţa terenului",
+          "value": "30 ar"
+        },
+        {
+          "name": "Etaje",
+          "value": "1"
+        },
+        {
+          "name": "Dormitoare",
+          "value": "3"
+        },
+        {
+          "name": "Înălțimea tavanului",
+          "value": "0.00"
+        }
+      ],
+      "features": [
+        {
+          "id": "d1cf7a4b-4d66-48e8-a999-394fa6fc104d",
+          "name": "Gata pentru intrare"
+        },
+        {
+          "id": "d2ac0a81-9f86-43c3-8504-3a0e7d4ffe57",
+          "name": "Mobilat"
+        },
+        {
+          "id": "aa773174-0800-4f4e-8949-3c6e0d0bb8b2",
+          "name": "Cu electrocasnice "
+        },
+        {
+          "id": "e70d966a-6b05-4d77-83cf-b24e60294939",
+          "name": "Garaj"
+        },
+        {
+          "id": "84fe62dd-facb-4c1d-a646-0dc4b0ab2777",
+          "name": "Beci/subsol"
+        },
+        {
+          "id": "e3cb3c78-b784-41d7-95f1-fd44c210debb",
+          "name": "Saună"
+        },
+        {
+          "id": "c05130d3-fbda-47e9-b340-6a38cd2ca31b",
+          "name": "Grădină / seră"
+        },
+        {
+          "id": "576004b9-edde-4360-a8da-3ebffb1546d9",
+          "name": "Încălzire autonomă"
+        },
+        {
+          "id": "6a001c52-3f6e-48bb-a23d-f7701fa545ad",
+          "name": "Geamuri"
+        },
+        {
+          "id": "d799b5d2-96c5-48ed-b237-c6f46db07434",
+          "name": "Zona de parcare"
+        },
+        {
+          "id": "d3a265f8-775f-4a9a-94ea-858e20965366",
+          "name": "Spital/clinică"
+        },
+        {
+          "id": "a3c9386a-a47d-45f4-9083-64e3829da502",
+          "name": "Şcoală"
+        },
+        {
+          "id": "59caa44b-baac-4f4e-a577-55b5cc0ae28b",
+          "name": "Supermarket"
+        }
+      ],
+      "faq": [],
+      "meta": {
+        "title": "Case spre vânzare 3 odăi în Chișinău, sector Criuleni, suprăfață 150",
+        "keywords": "",
+        "description": "Vânzare cade cu 3 camere din Chișinău, Criuleni, 150, Hrușova. Cumpărarea unei case. Termene flexibile de plată și ratele ipotecare."
+      }
+    },
+    "ru": {
+      "url": "prodazha-kriulyany-kriuleny-grushevo-1ac18",
+      "address": "Грушево",
+      "description": "<p>Предлагаем дом в <strong>Криулянах, с. Грушова</strong>.</p>",
+      "characteristics": [
+        {
+          "name": "Общая площадь",
+          "value": "150 m2"
+        },
+        {
+          "name": "Тип предложения",
+          "value": "Продажа"
+        },
+        {
+          "name": "Комнат",
+          "value": "3"
+        },
+        {
+          "name": "Состояние",
+          "value": "Жилое состояние"
+        },
+        {
+          "name": "Санузел",
+          "value": "1"
+        },
+        {
+          "name": "Тип строения",
+          "value": "Старое"
+        },
+        {
+          "name": "Площадь участка",
+          "value": "30 ar"
+        },
+        {
+          "name": "Этажность",
+          "value": "1"
+        },
+        {
+          "name": "Спальни",
+          "value": "3"
+        },
+        {
+          "name": "Высота потолков",
+          "value": "0.00"
+        }
+      ],
+      "features": [
+        {
+          "id": "d1cf7a4b-4d66-48e8-a999-394fa6fc104d",
+          "name": "Готов к вьезду "
+        },
+        {
+          "id": "d2ac0a81-9f86-43c3-8504-3a0e7d4ffe57",
+          "name": "Меблирован "
+        },
+        {
+          "id": "aa773174-0800-4f4e-8949-3c6e0d0bb8b2",
+          "name": "С бытовой техникой "
+        },
+        {
+          "id": "e70d966a-6b05-4d77-83cf-b24e60294939",
+          "name": "Гараж"
+        },
+        {
+          "id": "84fe62dd-facb-4c1d-a646-0dc4b0ab2777",
+          "name": "Погреб / подвал"
+        },
+        {
+          "id": "e3cb3c78-b784-41d7-95f1-fd44c210debb",
+          "name": "Сауна"
+        },
+        {
+          "id": "c05130d3-fbda-47e9-b340-6a38cd2ca31b",
+          "name": "Сад / оранжерея "
+        },
+        {
+          "id": "576004b9-edde-4360-a8da-3ebffb1546d9",
+          "name": "Автономное отопление "
+        },
+        {
+          "id": "6a001c52-3f6e-48bb-a23d-f7701fa545ad",
+          "name": "Стеклопакет"
+        },
+        {
+          "id": "d799b5d2-96c5-48ed-b237-c6f46db07434",
+          "name": "Детский сад "
+        },
+        {
+          "id": "d3a265f8-775f-4a9a-94ea-858e20965366",
+          "name": "Больница / поликлиника"
+        },
+        {
+          "id": "a3c9386a-a47d-45f4-9083-64e3829da502",
+          "name": "Школа"
+        },
+        {
+          "id": "59caa44b-baac-4f4e-a577-55b5cc0ae28b",
+          "name": "Супермаркет"
+        }
+      ],
+      "faq": [],
+      "meta": {
+        "title": "Продается 3 комнатная дом в Кишиневе, сектор Криулены, площадь 150",
+        "keywords": "",
+        "description": "Продажа 3 комнатного дома в Кишинёве, Криулены, 150, Грушево. Покупка дома. Гибкие условия оплаты и ставки по ипотечным кредитам."
+      }
+    }
+  },
+  "updatedAt": "2026-10-21T07:24:08.000Z",
+  "createdAt": "2025-09-16T12:22:08.000Z",
+  "_embedded": {
+    "region": {
+      "id": "3bb01a21-300c-431a-a5cb-bc678b93ecc0",
+      "surrogateId": 50,
+      "cityId": "e967e46e-af68-496a-9f1c-5fc4e56a5366",
+      "i18n": {
+        "ro": {
+          "name": "Criuleni"
+        },
+        "ru": {
+          "name": "Криулены"
+        }
+      },
+      "createdAt": "2024-05-28T16:50:10.000Z",
+      "updatedAt": "2024-05-28T16:50:10.000Z"
+    },
+    "city": {
+      "id": "e967e46e-af68-496a-9f1c-5fc4e56a5366",
+      "surrogateId": 22,
+      "i18n": {
+        "ro": {
+          "name": "Criuleni"
+        },
+        "ru": {
+          "name": "Криуляны"
+        }
+      },
+      "createdAt": "2024-05-28T16:50:00.000Z",
+      "updatedAt": "2024-05-28T16:50:00.000Z"
+    },
+    "agents": [
+      {
+        "id": "00000000-0000-4000-8000-000000000120",
+        "internalId": 1,
+        "surrogateId": 1002,
+        "phone": "060000001",
+        "email": "agent@example.md",
+        "notes": "private note",
+        "propertyIds": [
+          "x",
+          "y"
+        ],
+        "rating": 5,
+        "votes": 3,
+        "position": "a9a182b6-3c48-44ed-90be-b1acd82ef381",
+        "positionId": "a9a182b6-3c48-44ed-90be-b1acd82ef381",
+        "regionId": "ce8deceb-3a25-4075-80e5-87be248e067c",
+        "region": "ce8deceb-3a25-4075-80e5-87be248e067c",
+        "image": null,
+        "assets": {},
+        "i18n": {
+          "ro": {
+            "name": "Agent Test",
+            "about": ""
+          },
+          "ru": {
+            "name": "Агент Тест",
+            "about": ""
+          }
+        }
+      }
+    ]
+  }
+}

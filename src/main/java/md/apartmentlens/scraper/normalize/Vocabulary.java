@@ -102,6 +102,7 @@ public final class Vocabulary {
             .put("euro_renovation", "Euroreparație", "Евроремонт")
             .put("cosmetic_renovation", "Reparație cosmetică", "Косметический ремонт")
             .put("individual_design", "Design individual", "Индивидуальный дизайн")
+            .put("habitable", "Stare locativă", "Locuibilă", "Жилое состояние")
             .put("no_renovation", "Fără reparație", "Без ремонта")
             .put("needs_renovation", "Are nevoie de reparație", "Требует ремонта", "Нуждается в ремонте")
             .put("unfinished", "Construcție nefinisată", "Незавершённое строительство", "Незавершенное строительство")

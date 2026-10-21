@@ -23,6 +23,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-jackson")
+    implementation("org.jsoup:jsoup:1.21.1")
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation(platform(SpringBootPlugin.BOM_COORDINATES))

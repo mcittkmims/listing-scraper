@@ -89,6 +89,13 @@ public final class AddressNormalizer {
         return streets;
     }
 
+    /** True when the locality itself has a street of exactly this name (in any spelling the map knows). */
+    public boolean isStreetIn(String name, Place locality) {
+        return streets.resolve(name, null, locality.point(), locality.radiusKm(), false, s -> inLocality(s, locality))
+                .filter(m -> m.method().equals("exact") || m.method().equals("alias"))
+                .isPresent();
+    }
+
     /**
      * @param pin      the seller's pin, already checked to lie in the locality, or null
      * @param locality the ad's settlement, or null when unknown

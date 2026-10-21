@@ -11,6 +11,7 @@ import md.apartmentlens.scraper.normalize.address.LocationNormalizer;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer.Place;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
+import md.apartmentlens.scraper.normalize.address.StreetTypes;
 import md.apartmentlens.scraper.source.Coded;
 import md.apartmentlens.scraper.source.GeoPoint;
 import md.apartmentlens.scraper.source.SourceAd;
@@ -24,7 +25,7 @@ import md.apartmentlens.scraper.text.Text;
  */
 public final class ListingNormalizer {
 
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
 
     private static final Pattern COUNT = Pattern.compile("(\\d{1,2})");
     private static final Pattern REGION_SUFFIX = Pattern.compile("\\s*\\b(mun\\.?|municipiul|r-nul|raionul|UTA)\\s*",
@@ -130,13 +131,22 @@ public final class ListingNormalizer {
         if (place == null && localityLabel != null) {
             issues.add("locality", localityLabel, "not_in_gazetteer");
         }
+        String streetRaw = ad.street();
+        Place village = villageInStreet(ad, place, districtLabel);
+        if (village != null) {
+            place = village;
+            streetRaw = null;
+        }
+        if (place != null) {
+            out.locality(place.nameRo()); // one spelling for every source: "Stăuceni", not "Stauceni"
+        }
         GeoPoint pin = locations.checkPin(ad.pin(), place, issues);
         // A pin the site placed only near the property never picks a street or a building; it places the ad
         // only when nothing more precise is known.
         boolean approximate = ad.pinRadiusM() != null;
         GeoPoint onProperty = approximate ? null : pin;
         Place districtPlace = places.district(districtLabel, place).orElse(null);
-        AddressNormalizer.Address address = addresses.normalize(ad.street(), ad.houseNumber(), place, onProperty,
+        AddressNormalizer.Address address = addresses.normalize(streetRaw, ad.houseNumber(), place, onProperty,
                 issues);
         LocationNormalizer.Location location = locations.locate(onProperty, address, districtPlace, place, issues);
         if (approximate && pin != null) {
@@ -157,6 +167,30 @@ public final class ListingNormalizer {
                 .crosslinks(List.copyOf(ad.crosslinks()));
 
         return out.issues(issues.list()).build();
+    }
+
+    /** How far from the ad's locality a village written as the street can be. */
+    static final double VILLAGE_IN_STREET_KM = 25;
+
+    /**
+     * Some sources name a district or a nearby town and write the village where the street goes ("Ialoveni",
+     * "Dănceni"). When the ad has no pin on the property and no city district, a bare street text (no type such
+     * as "str.") that is exactly the name of a settlement nearby, and of no street of the locality itself, is
+     * that settlement.
+     */
+    private Place villageInStreet(SourceAd ad, Place place, String districtLabel) {
+        String street = Text.clean(ad.street());
+        if (place == null || street == null || districtLabel != null || (ad.pin() != null && ad.pinRadiusM() == null)) {
+            return null;
+        }
+        StreetTypes.Split split = StreetTypes.split(street);
+        if (split.type() != null || split.name() == null) {
+            return null;
+        }
+        return places.settlementExactly(split.name(), place.point())
+                .filter(v -> !v.equals(place) && v.point().kmTo(place.point()) < VILLAGE_IN_STREET_KM)
+                .filter(v -> !addresses.isStreetIn(split.name(), place))
+                .orElse(null);
     }
 
     private static String propertyType(SourceAd ad, RoomsNormalizer.Rooms roomCount, Issues issues) {

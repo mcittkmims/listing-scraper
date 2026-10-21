@@ -18,6 +18,7 @@ import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.ref.RefStore;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
+import md.apartmentlens.scraper.source.proimobil.ProimobilSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
 import md.apartmentlens.scraper.store.DefaultPinRegistry;
 import md.apartmentlens.scraper.store.ExchangeRateRepository;
@@ -49,6 +50,11 @@ class ScraperConfiguration {
     @Bean
     NineNineSource nineNineSource(PoliteHttpClient http, JsonMapper json, ScraperProperties p) {
         return new NineNineSource(http, json, p.maxPages());
+    }
+
+    @Bean
+    ProimobilSource proimobilSource(PoliteHttpClient http, JsonMapper json) {
+        return new ProimobilSource(http, json);
     }
 
     @Bean

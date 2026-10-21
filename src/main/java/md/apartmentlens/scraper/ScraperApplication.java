@@ -22,9 +22,9 @@ import org.springframework.core.env.Environment;
 /**
  * The scraper service. Without arguments it runs as a service and crawls on its schedule. Commands:
  * <ul>
- *   <li>{@code crawl}: one pass over every source, then exit</li>
- *   <li>{@code renormalize}: normalize ads stored by an older normalizer again, then exit;
- *       {@code renormalize --all} does every ad</li>
+ *   <li>{@code crawl [SOURCE...]}: one pass over every source, or the ones named (e.g. 999md, proimobil), then exit</li>
+ *   <li>{@code renormalize [SOURCE...]}: normalize ads stored by an older normalizer again, then exit;
+ *       {@code --all} does every ad</li>
  *   <li>{@code import-ref [cadastre] [osm]}: load the reference data of streets and addresses, then exit;
  *       without arguments both (OpenStreetMap needs its staging tables, see database/osm)</li>
  *   <li>{@code export-gazetteer DIR}: write the ref tables as the bundled gazetteer files</li>
@@ -36,7 +36,7 @@ public class ScraperApplication {
     public static void main(String[] args) {
         String command = Arrays.stream(args).filter(a -> !a.startsWith("--")).findFirst().orElse("daemon");
         if (!List.of("daemon", "crawl", "renormalize", "import-ref", "export-gazetteer").contains(command)) {
-            System.err.println("unknown command '" + command + "'; use crawl, renormalize [--all], "
+            System.err.println("unknown command '" + command + "'; use crawl [SOURCE...], renormalize [SOURCE...] [--all], "
                     + "import-ref [cadastre] [osm], export-gazetteer DIR, or no command");
             System.exit(2);
         }
@@ -55,8 +55,8 @@ public class ScraperApplication {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
             switch (mode) {
-                case "crawl" -> sources.forEach(s -> crawls.crawl(s).ifPresent(stats -> pinReview.review(s)));
-                case "renormalize" -> sources.forEach(s -> {
+                case "crawl" -> named(sources, args).forEach(s -> crawls.crawl(s).ifPresent(stats -> pinReview.review(s)));
+                case "renormalize" -> named(sources, args).forEach(s -> {
                     renormalize.renormalize(s, args.containsOption("all"));
                     pinReview.review(s); // pins are stored by the step above
                 });
@@ -79,5 +79,19 @@ public class ScraperApplication {
                 }
             }
         };
+    }
+
+    /** The sources named after the command, or all of them. */
+    static List<ListingSource> named(List<ListingSource> sources, ApplicationArguments args) {
+        List<String> codes = args.getNonOptionArgs().subList(1, args.getNonOptionArgs().size());
+        if (codes.isEmpty()) {
+            return sources;
+        }
+        List<String> known = sources.stream().map(ListingSource::code).toList();
+        List<String> unknown = codes.stream().filter(c -> !known.contains(c)).toList();
+        if (!unknown.isEmpty()) {
+            throw new IllegalArgumentException("unknown sources " + unknown + "; known: " + known);
+        }
+        return sources.stream().filter(s -> codes.contains(s.code())).toList();
     }
 }

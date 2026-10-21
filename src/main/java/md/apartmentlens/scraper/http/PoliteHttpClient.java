@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
@@ -42,7 +43,11 @@ public class PoliteHttpClient {
     }
 
     /** The response of a successful request. */
-    public record Response(int status, byte[] body) {
+    public record Response(int status, byte[] body, HttpHeaders headers) {
+
+        public Optional<String> header(String name) {
+            return headers.firstValue(name);
+        }
     }
 
     public Response post(URI uri, Map<String, String> headers, byte[] body) throws IOException {
@@ -76,7 +81,7 @@ public class PoliteHttpClient {
                 byte[] bytes = read(r);
                 int status = r.statusCode();
                 if (status >= 200 && status < 300) {
-                    return new Response(status, bytes);
+                    return new Response(status, bytes, r.headers());
                 }
                 if (status == 429 || status >= 500) {
                     wait = retryAfter(r).orElse(wait);

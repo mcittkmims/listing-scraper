@@ -14,6 +14,15 @@ public final class Fixtures {
     private Fixtures() {
     }
 
+    /** A response body as stored in src/test/resources/{dir}/{name}. */
+    public static byte[] bytes(String dir, String name) {
+        try (InputStream in = Fixtures.class.getResourceAsStream("/" + dir + "/" + name)) {
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static RawAd ninetyNine(String name) {
         try (InputStream in = Fixtures.class.getResourceAsStream("/ninetynine/" + name)) {
             byte[] body = in.readAllBytes();
