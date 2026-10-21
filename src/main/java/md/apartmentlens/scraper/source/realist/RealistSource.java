@@ -70,7 +70,9 @@ public class RealistSource implements ListingSource {
                 Map<String, String> cards = cards(doc);
                 List<String> urls = listed(doc);
                 // Past the last page the site sends the first one again.
-                if (urls.isEmpty() || !urls.stream().anyMatch(seen::add)) {
+                int before = seen.size();
+                seen.addAll(urls);
+                if (urls.isEmpty() || seen.size() == before) {
                     break;
                 }
                 pages++;

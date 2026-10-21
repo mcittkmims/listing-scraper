@@ -74,7 +74,9 @@ public class RomanescuSource implements ListingSource {
                     throw new IOException("Romanescu listing page without ads: " + category);
                 }
                 // Past the last page the site shows no cards, or the first page again.
-                if (cards.isEmpty() || !cards.keySet().stream().anyMatch(seen::add)) {
+                int before = seen.size();
+                seen.addAll(cards.keySet());
+                if (cards.isEmpty() || seen.size() == before) {
                     break;
                 }
                 pages++;
