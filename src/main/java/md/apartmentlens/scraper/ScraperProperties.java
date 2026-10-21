@@ -36,6 +36,6 @@ public record ScraperProperties(
         @DefaultValue("0.9") double minSeenShare,
         @DefaultValue("0.2") double maxGoneShare,
         @DefaultValue("/data/photos") String photosDir,
-        @DefaultValue("500ms") Duration photoInterval,
+        @DefaultValue("250ms") Duration photoInterval,
         @DefaultValue("2h") Duration photoBudget) {
 }
