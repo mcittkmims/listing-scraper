@@ -105,6 +105,7 @@ final class ProimobilParser {
             }
         }
         String copy = text(ad.path("999").path("id"));
+        Photos photos = photos(ad);
 
         return SourceAd.builder()
                 .externalId(ad.path("id").asString())
@@ -139,7 +140,8 @@ final class ProimobilParser {
                 .district(capital && area != null ? new Coded(null, area) : null)
                 .street(text(ro.path("address")))
                 .phones(phones)
-                .photoKeys(photos(ad))
+                .photoKeys(photos.keys())
+                .photoUrls(photos.urls())
                 .amenities(amenities(ro.path("features")))
                 .crosslinks(copy == null ? List.of() : List.of("999md:" + copy))
                 .postedAt(instant(ad.path("createdAt")))
@@ -182,19 +184,29 @@ final class ProimobilParser {
         return c == null ? null : labels.getOrDefault(c, c);
     }
 
-    private static List<String> photos(JsonNode ad) {
-        List<String> out = new ArrayList<>();
+    /** File names and their full-size links, the cover first ("" where the API gave no link). */
+    record Photos(List<String> keys, List<String> urls) {
+    }
+
+    static Photos photos(JsonNode ad) {
+        List<String> keys = new ArrayList<>();
+        List<String> urls = new ArrayList<>();
         String cover = text(ad.path("image"));
         if (cover != null) {
-            out.add(cover);
+            keys.add(cover);
+            String url = text(ad.path("assets").path("image").path("lg"));
+            urls.add(url == null ? "" : url);
         }
-        for (JsonNode g : ad.path("gallery")) {
-            String key = text(g);
-            if (key != null && !out.contains(key)) {
-                out.add(key);
+        JsonNode links = ad.path("assets").path("gallery").path("lg");
+        for (int i = 0; i < ad.path("gallery").size(); i++) {
+            String key = text(ad.path("gallery").get(i));
+            if (key != null && !keys.contains(key)) {
+                keys.add(key);
+                String url = text(links.path(i));
+                urls.add(url == null ? "" : url);
             }
         }
-        return out;
+        return new Photos(keys, urls);
     }
 
     private static Set<String> amenities(JsonNode features) {

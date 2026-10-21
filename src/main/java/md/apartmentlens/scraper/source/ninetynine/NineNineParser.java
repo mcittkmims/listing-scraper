@@ -22,6 +22,9 @@ import tools.jackson.databind.node.MissingNode;
 /** Reads one 999.md ad (as returned by searchAds or advert) into a {@link SourceAd}. No cleaning here. */
 final class NineNineParser {
 
+    /** 999.md's image server; 900x900 is the largest size it serves. */
+    static final String PHOTO_URL = "https://i.simpalsmedia.com/999.md/BoardImages/900x900/";
+
     SourceAd parse(JsonNode ad) {
         String id = ad.path("id").asString();
         SourceCategory category = category(ad.path("subCategory").path("id").asInt());
@@ -67,6 +70,7 @@ final class NineNineParser {
                 .pin(pin(value(ad, MAP_POINT)))
                 .phones(strings(value(ad, CONTACTS).path("phone_numbers")))
                 .photoKeys(strings(value(ad, IMAGES)))
+                .photoUrls(strings(value(ad, IMAGES)).stream().map(k -> PHOTO_URL + k).toList())
                 .hasVideo(!value(ad, VIDEOS).isMissingNode() || !value(ad, UPLOADED_VIDEO).isMissingNode())
                 .amenities(amenities(ad))
                 .postedAt(instant(ad.path("posted")))

@@ -9,7 +9,8 @@ RUN ./gradlew --no-daemon -q bootJar -x test
 
 # Run
 FROM eclipse-temurin:25-jre
-RUN useradd --system --uid 10001 scraper
+RUN useradd --system --uid 10001 scraper \
+ && mkdir -p /data/photos && chown scraper /data/photos
 USER scraper
 WORKDIR /app
 COPY --from=build /src/build/libs/listing-scraper.jar app.jar

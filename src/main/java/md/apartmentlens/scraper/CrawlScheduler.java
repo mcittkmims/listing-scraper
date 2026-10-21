@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.List;
 import md.apartmentlens.scraper.crawl.CrawlService;
 import md.apartmentlens.scraper.crawl.DefaultPinReview;
+import md.apartmentlens.scraper.photo.PhotoDownloader;
 import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
 import org.slf4j.Logger;
@@ -16,7 +17,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** Runs every source on the schedule, one after another, while the scraper runs as a service. */
+/** Runs every source on the schedule, one after another, then downloads new photos, while the scraper runs as a service. */
 @Component
 @EnableScheduling
 @ConditionalOnProperty(name = "scraper.mode", havingValue = "daemon", matchIfMissing = true)
@@ -30,9 +31,11 @@ class CrawlScheduler {
     private final CrawlRunRepository runs;
     private final ScraperProperties properties;
     private final Clock clock;
+    private final PhotoDownloader photos;
 
     CrawlScheduler(List<ListingSource> sources, CrawlService crawls, DefaultPinReview pinReview,
-                   CrawlRunRepository runs, ScraperProperties properties, Clock clock) {
+                   CrawlRunRepository runs, ScraperProperties properties, Clock clock, PhotoDownloader photos) {
+        this.photos = photos;
         this.sources = sources;
         this.crawls = crawls;
         this.pinReview = pinReview;
@@ -67,6 +70,12 @@ class CrawlScheduler {
             } catch (RuntimeException e) {
                 log.error("{}: crawl failed: {}", source.code(), e.toString(), e);
             }
+        }
+        try {
+            PhotoDownloader.Stats stats = photos.run(properties.photoBudget());
+            log.info("photos after the crawl: {}", stats);
+        } catch (RuntimeException e) {
+            log.error("photo downloads failed: {}", e.toString(), e);
         }
     }
 }

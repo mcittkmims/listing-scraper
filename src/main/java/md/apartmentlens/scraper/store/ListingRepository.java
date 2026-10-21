@@ -135,7 +135,7 @@ public class ListingRepository {
                 .addValue("normalizer_version", normalizerVersion);
         String columns = String.join(", ", COLUMNS.keySet());
         String values = COLUMNS.keySet().stream().map(c -> ":" + c).collect(Collectors.joining(", "));
-        return jdbc.sql("insert into ingest.listing (source_id, external_id, url, status, first_seen_at, last_seen_at, "
+        long id = jdbc.sql("insert into ingest.listing (source_id, external_id, url, status, first_seen_at, last_seen_at, "
                         + "posted_at, republished_at, content_sha256, summary_sha256, detail_fetched_at, "
                         + "normalizer_version, normalized_at, " + columns + ", "
                         + SPECIAL_COLUMNS + ") values (:source_id, :external_id, :url, 'active', :seen, :seen, "
@@ -143,6 +143,8 @@ public class ListingRepository {
                         + ":normalizer_version, now(), " + values + ", "
                         + SPECIAL_VALUES + ") returning id")
                 .paramSource(p).query(Long.class).single();
+        linkPhotos(id, l.photoKeys());
+        return id;
     }
 
     /** Replaces the normalized fields; also marks the ad active and seen when {@code seenAt} is given. */
@@ -169,6 +171,26 @@ public class ListingRepository {
                         + "gone_at = case when cast(:seen as timestamptz) is null then gone_at else null end "
                         + "where id = :id")
                 .paramSource(p).update();
+        linkPhotos(id, l.photoKeys());
+    }
+
+    /** The ad's photos in media.listing_image, each one also a photo of its site to download once. */
+    private void linkPhotos(long listingId, List<String> keys) {
+        MapSqlParameterSource p = new MapSqlParameterSource()
+                .addValue("id", listingId)
+                .addValue("keys", array("text", keys.toArray(new String[0])), Types.ARRAY);
+        jdbc.sql("""
+                        insert into media.source_photo (source_id, photo_key)
+                        select l.source_id, k from ingest.listing l, unnest(cast(:keys as text[])) as k where l.id = :id
+                        on conflict do nothing
+                        """).paramSource(p).update();
+        jdbc.sql("delete from media.listing_image where listing_id = :id").paramSource(p).update();
+        jdbc.sql("""
+                        insert into media.listing_image (listing_id, position, source_id, photo_key)
+                        select l.id, (k.n - 1)::smallint, l.source_id, k.key
+                        from ingest.listing l, unnest(cast(:keys as text[])) with ordinality as k(key, n)
+                        where l.id = :id
+                        """).paramSource(p).update();
     }
 
     /** The ad was seen again unchanged. */

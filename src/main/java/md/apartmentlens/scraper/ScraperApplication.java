@@ -1,12 +1,14 @@
 package md.apartmentlens.scraper;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import md.apartmentlens.scraper.crawl.CrawlService;
 import md.apartmentlens.scraper.crawl.DefaultPinReview;
 import md.apartmentlens.scraper.crawl.RenormalizeService;
+import md.apartmentlens.scraper.photo.PhotoDownloader;
 import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.source.ListingSource;
 import org.springframework.boot.ApplicationArguments;
@@ -23,6 +25,7 @@ import org.springframework.core.env.Environment;
  *   <li>{@code crawl [SOURCE...]}: one pass over every source, or the ones named (e.g. 999md, proimobil), then exit</li>
  *   <li>{@code renormalize [SOURCE...]}: normalize ads stored by an older normalizer again, then exit;
  *       {@code --all} does every ad</li>
+ *   <li>{@code photos}: download the photos not stored yet, until none is left, then exit</li>
  *   <li>{@code export-gazetteer DIR}: write the ref tables as the bundled gazetteer files</li>
  * </ul>
  * The ref tables (streets, house numbers, places) are only read here; the address-data tool of the main
@@ -33,9 +36,9 @@ public class ScraperApplication {
 
     public static void main(String[] args) {
         String command = Arrays.stream(args).filter(a -> !a.startsWith("--")).findFirst().orElse("daemon");
-        if (!List.of("daemon", "crawl", "renormalize", "export-gazetteer").contains(command)) {
+        if (!List.of("daemon", "crawl", "renormalize", "photos", "export-gazetteer").contains(command)) {
             System.err.println("unknown command '" + command + "'; use crawl [SOURCE...], renormalize [SOURCE...] [--all], "
-                    + "export-gazetteer DIR, or no command");
+                    + "photos, export-gazetteer DIR, or no command");
             System.exit(2);
         }
         SpringApplication app = new SpringApplication(ScraperApplication.class);
@@ -48,7 +51,8 @@ public class ScraperApplication {
 
     @Bean
     ApplicationRunner commands(List<ListingSource> sources, CrawlService crawls, RenormalizeService renormalize,
-                               DefaultPinReview pinReview, RefGazetteer refGazetteer, Environment env) {
+                               DefaultPinReview pinReview, RefGazetteer refGazetteer, PhotoDownloader photos,
+                               Environment env) {
         return (ApplicationArguments args) -> {
             String mode = env.getProperty("scraper.mode", "daemon");
             switch (mode) {
@@ -57,6 +61,7 @@ public class ScraperApplication {
                     renormalize.renormalize(s, args.containsOption("all"));
                     pinReview.review(s); // pins are stored by the step above
                 });
+                case "photos" -> photos.run(Duration.ofDays(365));
                 case "export-gazetteer" -> {
                     List<String> rest = args.getNonOptionArgs();
                     Path dir = Path.of(rest.size() > 1 ? rest.get(1) : "gazetteer");

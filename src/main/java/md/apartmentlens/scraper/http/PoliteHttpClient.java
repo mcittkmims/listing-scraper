@@ -1,5 +1,6 @@
 package md.apartmentlens.scraper.http;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -7,9 +8,14 @@ import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
 import org.slf4j.Logger;
@@ -85,8 +91,8 @@ public class PoliteHttpClient {
             Duration wait = backoff(attempt);
             try {
                 requests.incrementAndGet();
-                HttpResponse<InputStream> r = client.send(b.build(), HttpResponse.BodyHandlers.ofInputStream());
-                byte[] bytes = read(r);
+                HttpResponse<byte[]> r = complete(b.build());
+                byte[] bytes = decode(r);
                 int status = r.statusCode();
                 if (status >= 200 && status < 300) {
                     return new Response(status, bytes, r.headers());
@@ -118,9 +124,31 @@ public class PoliteHttpClient {
         throw last;
     }
 
-    private static byte[] read(HttpResponse<InputStream> r) throws IOException {
+    /**
+     * The whole response within the request timeout. The client's own timeout ends with the headers, so a server
+     * that stalls while sending the body would otherwise hold the request until the connection drops.
+     */
+    private HttpResponse<byte[]> complete(HttpRequest request) throws IOException, InterruptedException {
+        CompletableFuture<HttpResponse<byte[]>> future = client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+        try {
+            return future.get(requestTimeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw new HttpTimeoutException("no complete response within " + requestTimeout.toSeconds() + "s");
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException io) {
+                throw io;
+            }
+            throw new IOException(e.getCause());
+        }
+    }
+
+    private static byte[] decode(HttpResponse<byte[]> r) throws IOException {
         boolean gzip = r.headers().firstValue("Content-Encoding").map(v -> v.equalsIgnoreCase("gzip")).orElse(false);
-        try (InputStream in = gzip ? new GZIPInputStream(r.body()) : r.body()) {
+        if (!gzip) {
+            return r.body();
+        }
+        try (InputStream in = new GZIPInputStream(new ByteArrayInputStream(r.body()))) {
             return in.readAllBytes();
         }
     }

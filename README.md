@@ -25,6 +25,8 @@ Each source has its own small parser; everything after it is shared.
 
 Carpatics is not collected: almost all of its ads are Proimobil's. Prime Imobil lists no flats or houses.
 
+After each pass the service downloads the photos it has not stored yet, the newest ads first and every photo server at its own polite pace. Each photo is downloaded once per site and stored once per content, as a file named by its SHA-256 (`photos` downloads the backlog without crawling).
+
 Where a site lists only a summary of each ad, the whole ad is read when the summary changes, and at least once a week. Private data a site returns but does not publish (an owner's phone, agents' notes) is removed before anything is stored.
 
 ## Normalization

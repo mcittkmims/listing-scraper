@@ -18,10 +18,15 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import javax.sql.DataSource;
 import md.apartmentlens.scraper.Fixtures;
+import md.apartmentlens.scraper.http.HttpStatusException;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
+import md.apartmentlens.scraper.photo.FilePhotoStore;
+import md.apartmentlens.scraper.photo.PhotoDownloader;
+import md.apartmentlens.scraper.photo.PhotoDownloaderTestImages;
+import md.apartmentlens.scraper.photo.PhotoRepository;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.source.Listed;
@@ -38,6 +43,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -89,7 +95,7 @@ class CrawlServiceIT {
 
     @BeforeEach
     void setUp() {
-        admin.sql("truncate ingest.listing, ingest.crawl_run, ingest.exchange_rate restart identity cascade").update();
+        admin.sql("truncate ingest.listing, ingest.crawl_run, ingest.exchange_rate, media.source_photo, media.image, ops.job restart identity cascade").update();
         JdbcClient jdbc = JdbcClient.create(scraper);
         TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(scraper));
         ExchangeRateService rates = new ExchangeRateService(new ExchangeRateRepository(jdbc), new BnmRateClient(null) {
@@ -205,6 +211,65 @@ class CrawlServiceIT {
 
     private int priceAmount() {
         return admin.sql("select price_amount from ingest.listing").query(BigDecimal.class).single().intValue();
+    }
+
+    @Test
+    void eachPhotoIsDownloadedOnceStoredOnceAndAnnouncedOnce(@TempDir Path photosDir) {
+        source.put(Fixtures.ninetyNine("apartment.json")); // photos ...0a.jpg and ...0b.jpg
+        crawls.crawl(source);
+        assertThat(admin.sql("select photo_key from media.listing_image order by position").query(String.class).list())
+                .containsExactly("0000000000000000000000000000000a.jpg", "0000000000000000000000000000000b.jpg");
+
+        // Both photos of the ad are the same picture: two downloads, one image, one job.
+        Map<String, byte[]> served = new java.util.HashMap<>();
+        served.put(NINE_NINE_PHOTOS + "0000000000000000000000000000000a.jpg", PhotoDownloaderTestImages.jpeg(1));
+        served.put(NINE_NINE_PHOTOS + "0000000000000000000000000000000b.jpg", PhotoDownloaderTestImages.jpeg(1));
+        List<String> asked = new ArrayList<>();
+        PhotoDownloader downloader = downloader(photosDir, served, asked);
+        PhotoDownloader.Stats first = downloader.run(Duration.ofMinutes(5));
+        assertThat(first).isEqualTo(new PhotoDownloader.Stats(2, 1, 0));
+        assertThat(count("media.image")).isEqualTo(1);
+        assertThat(admin.sql("select count(*) from ops.job where kind = 'image.fingerprint'").query(Integer.class).single())
+                .isEqualTo(1);
+
+        // Another ad showing the same photo of the same site is not downloaded again.
+        source.put(copy("apartment.json", "100000301"));
+        crawls.crawl(source);
+        assertThat(downloader.run(Duration.ofMinutes(5))).isEqualTo(new PhotoDownloader.Stats(0, 0, 0));
+        assertThat(asked).hasSize(2);
+    }
+
+    @Test
+    void aPhotoGoneAtTheSourceIsNotAskedForAgain_otherFailuresAreRetriedLater(@TempDir Path photosDir) {
+        source.put(Fixtures.ninetyNine("apartment.json"));
+        crawls.crawl(source);
+        List<String> asked = new ArrayList<>();
+        PhotoDownloader downloader = new PhotoDownloader(new PhotoRepository(JdbcClient.create(scraper)),
+                new FilePhotoStore(photosDir), new TransactionTemplate(new DataSourceTransactionManager(scraper)),
+                host -> url -> {
+                    asked.add(url);
+                    throw url.endsWith("a.jpg") ? new HttpStatusException(404, java.net.URI.create(url))
+                            : new HttpStatusException(403, java.net.URI.create(url)); // an expired signature
+                }, Clock.systemUTC());
+        assertThat(downloader.run(Duration.ofMinutes(5))).isEqualTo(new PhotoDownloader.Stats(0, 0, 2));
+        assertThat(admin.sql("select photo_key || ':' || attempts from media.source_photo order by photo_key")
+                .query(String.class).list())
+                .containsExactly("0000000000000000000000000000000a.jpg:" + PhotoRepository.MAX_ATTEMPTS,
+                        "0000000000000000000000000000000b.jpg:1");
+        // Neither is asked for again at once: the gone one never, the other after a pause.
+        assertThat(downloader.run(Duration.ofMinutes(5))).isEqualTo(new PhotoDownloader.Stats(0, 0, 0));
+        assertThat(asked).hasSize(2);
+    }
+
+    static final String NINE_NINE_PHOTOS = "https://i.simpalsmedia.com/999.md/BoardImages/900x900/";
+
+    private PhotoDownloader downloader(Path dir, Map<String, byte[]> served, List<String> asked) {
+        return new PhotoDownloader(new PhotoRepository(JdbcClient.create(scraper)), new FilePhotoStore(dir),
+                new TransactionTemplate(new DataSourceTransactionManager(scraper)),
+                host -> url -> {
+                    asked.add(url);
+                    return served.get(url);
+                }, Clock.systemUTC());
     }
 
     @Test

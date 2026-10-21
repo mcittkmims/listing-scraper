@@ -1,6 +1,7 @@
 package md.apartmentlens.scraper;
 
 import java.time.Clock;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import md.apartmentlens.scraper.crawl.CrawlService;
@@ -12,6 +13,9 @@ import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
+import md.apartmentlens.scraper.photo.FilePhotoStore;
+import md.apartmentlens.scraper.photo.PhotoDownloader;
+import md.apartmentlens.scraper.photo.PhotoRepository;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
 import md.apartmentlens.scraper.ref.RefGazetteer;
@@ -107,6 +111,12 @@ class ScraperConfiguration {
         DefaultPinRegistry registry = new DefaultPinRegistry(jdbc);
         registry.refresh();
         return registry;
+    }
+
+    @Bean(destroyMethod = "stop")
+    PhotoDownloader photoDownloader(JdbcClient jdbc, TransactionTemplate tx, Clock clock, ScraperProperties p) {
+        return new PhotoDownloader(new PhotoRepository(jdbc), new FilePhotoStore(Path.of(p.photosDir())), tx,
+                PhotoDownloader.politeFetchers(p.userAgent(), p.photoInterval()), clock);
     }
 
     @Bean

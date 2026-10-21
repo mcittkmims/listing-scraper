@@ -18,6 +18,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param maxPages         stop each category after this many pages; 0 reads everything (for testing only)
  * @param minSeenShare     a pass that saw fewer ads than this share of the last one marks nothing gone
  * @param maxGoneShare     more unseen ads than this share of active ones mark nothing gone
+ * @param photosDir        the folder photos are stored in
+ * @param photoInterval    minimum pause between two requests to one photo server
+ * @param photoBudget      how long the photo downloads after a crawl may take; the rest waits for the next one
  */
 @ConfigurationProperties("scraper")
 public record ScraperProperties(
@@ -31,5 +34,8 @@ public record ScraperProperties(
         @DefaultValue("3h") Duration startupGap,
         @DefaultValue("0") int maxPages,
         @DefaultValue("0.9") double minSeenShare,
-        @DefaultValue("0.2") double maxGoneShare) {
+        @DefaultValue("0.2") double maxGoneShare,
+        @DefaultValue("/data/photos") String photosDir,
+        @DefaultValue("500ms") Duration photoInterval,
+        @DefaultValue("2h") Duration photoBudget) {
 }
