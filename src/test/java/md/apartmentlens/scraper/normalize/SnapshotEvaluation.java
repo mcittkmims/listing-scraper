@@ -92,7 +92,7 @@ class SnapshotEvaluation {
         Map<String, Integer> check = new TreeMap<>();
         Map<String, List<String>> disagreements = new TreeMap<>();
         int withHouse = 0;
-        Path out = Path.of(System.getProperty("report", "build/snapshot-report.txt"));
+        Path out = Path.of(System.getProperty("report", "target/snapshot-report.txt"));
         try (PrintWriter matches = new PrintWriter(Files.newBufferedWriter(Path.of(out + ".matches.tsv"), StandardCharsets.UTF_8))) {
             for (SourceAd ad : ads) {
                 NormalizedListing l = normalizer.normalize(ad, day);

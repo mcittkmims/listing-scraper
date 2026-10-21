@@ -46,7 +46,7 @@ Streets and house numbers come from the cadastre's official register (35,000 str
 
 ## Running
 
-The service runs from the main repository with `docker compose up -d`. It can also be run once: `crawl` does one pass, and `renormalize` applies new normalization rules to the stored content without crawling; both take source names (`crawl proimobil`). Tests need Docker: `./gradlew test`.
+The service runs from the main repository with `docker compose up -d`. It can also be run once: `crawl` does one pass, and `renormalize` applies new normalization rules to the stored content without crawling; both take source names (`crawl proimobil`). Built with Maven; tests need Docker: `./mvnw test`.
 
 ## Data and technology
 
