@@ -21,7 +21,6 @@ import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.ListingNormalizer;
 import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
-import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.rates.BnmRateClient;
 import md.apartmentlens.scraper.rates.ExchangeRateService;
@@ -53,7 +52,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 class CrawlServiceIT {
 
-    static final StreetGazetteer STREETS = StreetGazetteer.load();
+    static final StreetGazetteer STREETS = Fixtures.streets();
     static PostgreSQLContainer db;
     static DataSource scraper;
     static JdbcClient admin;
@@ -100,7 +99,7 @@ class CrawlServiceIT {
             }
         });
         defaultPins = new DefaultPinRegistry(jdbc);
-        ListingNormalizer normalizer = new ListingNormalizer(new PriceNormalizer(rates), PlaceGazetteer.load(),
+        ListingNormalizer normalizer = new ListingNormalizer(new PriceNormalizer(rates), Fixtures.places(),
                 STREETS, new PhoneNormalizer("test-key-0123456789abcdef"), defaultPins);
         CrawlRunRepository runs = new CrawlRunRepository(jdbc);
         ListingRepository listings = new ListingRepository(jdbc, Fixtures.JSON);
@@ -194,9 +193,9 @@ class CrawlServiceIT {
         assertThat(source.fetches).isEqualTo(2);
         assertThat(priceAmount()).isEqualTo(95000);
 
-        // ...and a copy a week old is read again even when the summary is the same.
+        // ...and a copy over a week old is read again even when the summary is the same.
         source.replace("100000001", "\"value\": 95000", "\"value\": 90000");
-        clock.advance(Duration.ofDays(8));
+        clock.advance(CrawlService.DETAIL_MAX_AGE.plus(CrawlService.DETAIL_SPREAD));
         crawls.crawl(source);
         assertThat(source.fetches).isEqualTo(3);
         assertThat(priceAmount()).isEqualTo(90000);

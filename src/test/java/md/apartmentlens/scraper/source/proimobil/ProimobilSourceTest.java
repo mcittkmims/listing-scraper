@@ -12,8 +12,6 @@ import md.apartmentlens.scraper.normalize.NormalizedListing;
 import md.apartmentlens.scraper.normalize.PhoneNormalizer;
 import md.apartmentlens.scraper.normalize.PriceNormalizer;
 import md.apartmentlens.scraper.normalize.address.DefaultPins;
-import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
-import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
 import md.apartmentlens.scraper.source.RawAd;
 import md.apartmentlens.scraper.source.SourceAd;
 import md.apartmentlens.scraper.source.SourceCategory;
@@ -30,7 +28,7 @@ class ProimobilSourceTest {
     @BeforeAll
     static void setUp() {
         normalizer = new ListingNormalizer(new PriceNormalizer((currency, date) -> Optional.of(BigDecimal.ONE)),
-                PlaceGazetteer.load(), StreetGazetteer.load(), new PhoneNormalizer("test-key-0123456789abcdef"),
+                Fixtures.places(), Fixtures.streets(), new PhoneNormalizer("test-key-0123456789abcdef"),
                 DefaultPins.NONE);
     }
 

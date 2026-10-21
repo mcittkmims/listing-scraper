@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.address.DefaultPins;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer;
 import md.apartmentlens.scraper.normalize.address.StreetGazetteer;
@@ -49,8 +50,8 @@ class SnapshotEvaluation {
             case "USD" -> new BigDecimal("17.8523");
             default -> BigDecimal.ONE;
         }));
-        PlaceGazetteer places = PlaceGazetteer.load();
-        StreetGazetteer streets = StreetGazetteer.load();
+        PlaceGazetteer places = Fixtures.places();
+        StreetGazetteer streets = Fixtures.streets();
         PhoneNormalizer phones = new PhoneNormalizer("evaluation-key-0123456789");
         LocalDate day = LocalDate.of(2026, 10, 19);
 

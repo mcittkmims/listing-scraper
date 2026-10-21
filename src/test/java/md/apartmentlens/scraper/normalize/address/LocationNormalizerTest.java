@@ -2,6 +2,7 @@ package md.apartmentlens.scraper.normalize.address;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import md.apartmentlens.scraper.Fixtures;
 import md.apartmentlens.scraper.normalize.Issues;
 import md.apartmentlens.scraper.normalize.address.PlaceGazetteer.Place;
 import md.apartmentlens.scraper.source.GeoPoint;
@@ -9,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class LocationNormalizerTest {
 
-    static final StreetGazetteer STREETS = StreetGazetteer.load();
+    static final StreetGazetteer STREETS = Fixtures.streets();
     final LocationNormalizer locations = new LocationNormalizer(STREETS, pin -> pin.lat() == 47.0275 && pin.lon() == 28.8317);
     final Place balti = new Place("Bălți", "Бельцы", "city", new GeoPoint(47.7615, 27.9293), 102_457);
     final Place chisinau = new Place("Chișinău", "Кишинёв", "city", new GeoPoint(47.0245, 28.8323), 756_900);
