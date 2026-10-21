@@ -246,8 +246,8 @@ public class ListingRepository {
                 .list();
     }
 
-    /** Ads whose seller's pin is one of these (see {@link DefaultPins#key}). */
-    public List<Long> idsWithPin(Collection<Long> keys) {
+    /** Ads of a source whose seller's pin is one of these (see {@link DefaultPins#key}). */
+    public List<Long> idsWithPin(Collection<Long> keys, short sourceId) {
         if (keys.isEmpty()) {
             return List.of();
         }
@@ -255,10 +255,11 @@ public class ListingRepository {
         Long[] lons = keys.stream().map(k -> (long) (int) (k & 0xffffffffL)).toArray(Long[]::new);
         MapSqlParameterSource p = new MapSqlParameterSource()
                 .addValue("lats", array("bigint", lats), Types.ARRAY)
-                .addValue("lons", array("bigint", lons), Types.ARRAY);
+                .addValue("lons", array("bigint", lons), Types.ARRAY)
+                .addValue("source_id", sourceId);
         return jdbc.sql("""
                         select id from ingest.listing
-                        where pin is not null
+                        where source_id = :source_id and pin is not null
                           and (round(st_y(pin::geometry) * 100000)::bigint, round(st_x(pin::geometry) * 100000)::bigint)
                               in (select * from unnest(cast(:lats as bigint[]), cast(:lons as bigint[])))
                         """)

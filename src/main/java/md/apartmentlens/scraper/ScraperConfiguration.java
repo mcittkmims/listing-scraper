@@ -2,6 +2,7 @@ package md.apartmentlens.scraper;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 import md.apartmentlens.scraper.crawl.CrawlService;
 import md.apartmentlens.scraper.crawl.DefaultPinReview;
 import md.apartmentlens.scraper.crawl.RenormalizeService;
@@ -17,6 +18,7 @@ import md.apartmentlens.scraper.ref.CadastreImporter;
 import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.ref.RefStore;
+import md.apartmentlens.scraper.source.ListingSource;
 import md.apartmentlens.scraper.source.casamare.CasaMareSource;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
 import md.apartmentlens.scraper.source.okeyimobil.OkeyImobilSource;
@@ -155,8 +157,9 @@ class ScraperConfiguration {
 
     @Bean
     DefaultPinReview defaultPinReview(DefaultPinRegistry registry, ListingRepository listings,
-                                      RenormalizeService renormalize) {
-        return new DefaultPinReview(registry, listings, renormalize);
+                                      RenormalizeService renormalize, CrawlRunRepository runs,
+                                      List<ListingSource> sources) {
+        return new DefaultPinReview(registry, listings, renormalize, runs, sources);
     }
 
     @Bean

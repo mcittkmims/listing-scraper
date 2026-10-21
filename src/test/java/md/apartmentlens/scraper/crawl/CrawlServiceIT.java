@@ -106,7 +106,7 @@ class CrawlServiceIT {
         crawls = new CrawlService(runs, listings, normalizer, rates, tx, clock, () -> 0,
                 new CrawlService.Safety(Duration.ofHours(12), 0.5, 1.0));
         renormalize = new RenormalizeService(runs, listings, normalizer, rates, tx);
-        pinReview = new DefaultPinReview(defaultPins, listings, renormalize);
+        pinReview = new DefaultPinReview(defaultPins, listings, renormalize, runs, List.of(source));
         defaultPins.refresh();
     }
 
