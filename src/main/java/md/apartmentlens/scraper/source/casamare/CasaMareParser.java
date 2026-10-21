@@ -117,6 +117,7 @@ final class CasaMareParser {
                         ? new GeoPoint(geo.path("lat").asDouble(), geo.path("lng").asDouble()) : null)
                 .phones(phone == null ? List.of() : List.of(phone))
                 .photoKeys(photos(ad.path("photos")))
+                .photoUrls(photoUrls(ad.path("photos")))
                 .amenities(amenities(ad.path("features")))
                 .postedAt(instant(ad.path("createdAt")))
                 .build();
@@ -156,12 +157,17 @@ final class CasaMareParser {
 
     /** The photos' storage paths, without the signature that makes a link expire. */
     private static List<String> photos(JsonNode photos) {
+        return photoUrls(photos).stream().map(url -> url.indexOf('?') > 0 ? url.substring(0, url.indexOf('?')) : url)
+                .toList();
+    }
+
+    /** The photos' links as given, signed for seven days, in the order of {@link #photos}. */
+    static List<String> photoUrls(JsonNode photos) {
         List<String> out = new ArrayList<>();
         for (JsonNode p : photos) {
             String url = text(p.path("fallback")) != null ? text(p.path("fallback")) : text(p.path("webp"));
             if (url != null) {
-                int q = url.indexOf('?');
-                out.add(q > 0 ? url.substring(0, q) : url);
+                out.add(url);
             }
         }
         return out;

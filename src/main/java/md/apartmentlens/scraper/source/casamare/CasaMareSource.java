@@ -2,6 +2,7 @@ package md.apartmentlens.scraper.source.casamare;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,7 +22,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * CasaMare, a classifieds site for private sellers and agents, read through the JSON API of its website.
  * Its listing shows a summary of each ad (no Russian text, no contact), 100 per request; the whole ad is
- * one more request, made only when the summary changed.
+ * one more request, made only when the summary changed, and at least every six days: its photo links are
+ * signed for seven days, so the stored ones never expire.
  *
  * <p>The seller's e-mail address, which the API returns, is removed before anything is stored.
  */
@@ -78,6 +80,12 @@ public class CasaMareSource implements ListingSource {
             log.info("CasaMare {}: {} ads advertised, {} pages read", kind, total, pages);
         }
         return advertised;
+    }
+
+    /** Under the seven days the photo links are signed for. */
+    @Override
+    public Duration detailMaxAge() {
+        return Duration.ofDays(6);
     }
 
     @Override

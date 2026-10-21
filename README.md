@@ -17,7 +17,7 @@ Each source has its own small parser; everything after it is shared.
 | Source | Read through | Notes |
 |---|---|---|
 | 999.md | The JSON API of its website | Flats, houses and country houses; the seller's pin |
-| CasaMare | The JSON API of its website | Private sellers and agents; a summary per ad, the ad when it changes |
+| CasaMare | The JSON API of its website | Private sellers and agents; a summary per ad, the ad when it changes and at least every six days, so its photo links (signed for seven) stay valid |
 | Proimobil | The JSON API of its website | Names its copy of each ad on 999.md; sold ads and properties in Romania are left out |
 | OkeyImobil | The JSON API of its website | Names the 999.md ad each property came from |
 | Realist | Its HTML pages and their structured data | Pins the site marks as fuzzy only place an ad roughly |

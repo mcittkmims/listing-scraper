@@ -92,12 +92,12 @@ public class ListingRepository {
     }
 
     /** Columns that need an SQL expression around their parameter. */
-    private static final String SPECIAL_COLUMNS = "geom, pin, phone_hashes, photo_keys, amenities, crosslinks, issues";
+    private static final String SPECIAL_COLUMNS = "geom, pin, phone_hashes, photo_keys, photo_urls, amenities, crosslinks, issues";
     private static final String GEOM_VALUE = "case when cast(:lat as double precision) is null then null else "
             + "st_setsrid(st_makepoint(cast(:lon as double precision), cast(:lat as double precision)), 4326)::geography end";
     private static final String PIN_VALUE = GEOM_VALUE.replace(":lat", ":pin_lat").replace(":lon", ":pin_lon");
     private static final String SPECIAL_VALUES = GEOM_VALUE + ", " + PIN_VALUE
-            + ", :phone_hashes, :photo_keys, :amenities, :crosslinks, cast(:issues as jsonb)";
+            + ", :phone_hashes, :photo_keys, :photo_urls, :amenities, :crosslinks, cast(:issues as jsonb)";
 
     private final JdbcClient jdbc;
     private final JsonMapper json;
@@ -157,7 +157,8 @@ public class ListingRepository {
                 .addValue("normalizer_version", normalizerVersion);
         String sets = COLUMNS.keySet().stream().map(c -> c + " = :" + c).collect(Collectors.joining(", "));
         jdbc.sql("update ingest.listing set " + sets + ", geom = " + GEOM_VALUE + ", pin = " + PIN_VALUE
-                        + ", phone_hashes = :phone_hashes, photo_keys = :photo_keys, amenities = :amenities, "
+                        + ", phone_hashes = :phone_hashes, photo_keys = :photo_keys, photo_urls = :photo_urls, "
+                        + "amenities = :amenities, "
                         + "crosslinks = :crosslinks, "
                         + "issues = cast(:issues as jsonb), content_sha256 = :content_sha256, "
                         + "normalizer_version = :normalizer_version, normalized_at = now(), "
@@ -295,6 +296,7 @@ public class ListingRepository {
         p.addValue("pin_lon", l.sellerPin() == null ? null : l.sellerPin().lon(), Types.DOUBLE);
         p.addValue("phone_hashes", array("bytea", l.phoneHashes().toArray(new byte[0][])), Types.ARRAY);
         p.addValue("photo_keys", array("text", l.photoKeys().toArray(new String[0])), Types.ARRAY);
+        p.addValue("photo_urls", array("text", l.photoUrls().toArray(new String[0])), Types.ARRAY);
         p.addValue("amenities", array("text", l.amenities().toArray(new String[0])), Types.ARRAY);
         p.addValue("crosslinks", array("text", l.crosslinks().toArray(new String[0])), Types.ARRAY);
         p.addValue("issues", json.writeValueAsString(l.issues()));

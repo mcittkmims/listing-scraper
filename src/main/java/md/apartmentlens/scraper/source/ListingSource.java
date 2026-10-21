@@ -1,6 +1,7 @@
 package md.apartmentlens.scraper.source;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.function.Consumer;
 
@@ -29,6 +30,14 @@ public interface ListingSource {
      * @throws IOException when the source cannot be asked, so nothing can be concluded
      */
     Optional<RawAd> fetch(String externalId) throws IOException;
+
+    /**
+     * For a source that lists summaries: how old a stored ad may get before it is read again although its
+     * summary did not change. Ads are read again between 70% and 100% of this age, spread by ad.
+     */
+    default Duration detailMaxAge() {
+        return Duration.ofDays(10);
+    }
 
     /** Reads the stored content of an ad. */
     SourceAd parse(RawAd raw);

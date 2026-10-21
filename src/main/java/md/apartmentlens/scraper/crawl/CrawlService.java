@@ -40,8 +40,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * were not seen are fetched one by one: still listed (missed while the listing shifted) or gone.
  *
  * <p>Where the listing shows only a summary of each ad, the whole ad is fetched when the summary changed,
- * and at least every {@link #DETAIL_MAX_AGE} (plus up to {@link #DETAIL_SPREAD}, so the ads first read in
- * one pass are not all read again in one pass), so edits the summary does not show are found too.
+ * and again once it reaches the source's {@link ListingSource#detailMaxAge} (sooner for some ads than others,
+ * so the ads first read in one pass are not all read again in one pass), so edits the summary does not show
+ * are found too.
  *
  * <p>Each ad is handled in its own transaction, so one bad ad never stops a run.
  */
@@ -49,8 +50,6 @@ public class CrawlService implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(CrawlService.class);
     static final ZoneId MOLDOVA = ZoneId.of("Europe/Chisinau");
-    static final Duration DETAIL_MAX_AGE = Duration.ofDays(7);
-    static final Duration DETAIL_SPREAD = Duration.ofDays(3);
 
     /** Limits that protect against marking ads gone after a short or broken pass. */
     public record Safety(Duration staleRunAfter, double minSeenShare, double maxGoneShare) {
@@ -244,8 +243,13 @@ public class CrawlService implements AutoCloseable {
         private boolean upToDate(Stored s, byte[] summarySha) {
             return s.status().equals("active") && Arrays.equals(s.summarySha256(), summarySha)
                     && s.normalizerVersion() == ListingNormalizer.VERSION && s.detailFetchedAt() != null
-                    && s.detailFetchedAt().isAfter(clock.instant().minus(DETAIL_MAX_AGE)
-                            .minus(Duration.ofHours(Math.floorMod(s.id(), DETAIL_SPREAD.toHours()))));
+                    && s.detailFetchedAt().isAfter(clock.instant().minus(detailAge(s.id())));
+        }
+
+        /** Between 70% and 100% of the source's maximum age, the same for an ad on every pass. */
+        private Duration detailAge(long listingId) {
+            long max = source.detailMaxAge().toMinutes();
+            return Duration.ofMinutes(max * 7 / 10 + Math.floorMod(listingId * 7919, max * 3 / 10 + 1));
         }
 
         /**

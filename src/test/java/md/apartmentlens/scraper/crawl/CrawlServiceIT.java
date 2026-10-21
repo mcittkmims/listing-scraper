@@ -195,7 +195,7 @@ class CrawlServiceIT {
 
         // ...and a copy over a week old is read again even when the summary is the same.
         source.replace("100000001", "\"value\": 95000", "\"value\": 90000");
-        clock.advance(CrawlService.DETAIL_MAX_AGE.plus(CrawlService.DETAIL_SPREAD));
+        clock.advance(source.detailMaxAge());
         crawls.crawl(source);
         assertThat(source.fetches).isEqualTo(3);
         assertThat(priceAmount()).isEqualTo(90000);

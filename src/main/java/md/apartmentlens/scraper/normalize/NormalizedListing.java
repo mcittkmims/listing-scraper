@@ -80,6 +80,7 @@ public record NormalizedListing(
         String locationPrecision,
         List<byte[]> phoneHashes,
         List<String> photoKeys,
+        List<String> photoUrls,
         boolean hasVideo,
         List<String> amenities,
         List<String> crosslinks,
@@ -144,6 +145,7 @@ public record NormalizedListing(
         private String locationPrecision;
         private List<byte[]> phoneHashes = List.of();
         private List<String> photoKeys = List.of();
+        private List<String> photoUrls = List.of();
         private boolean hasVideo;
         private List<String> amenities = List.of();
         private List<String> crosslinks = List.of();
@@ -412,6 +414,11 @@ public record NormalizedListing(
             return this;
         }
 
+        public Builder photoUrls(List<String> photoUrls) {
+            this.photoUrls = photoUrls;
+            return this;
+        }
+
         public Builder hasVideo(boolean hasVideo) {
             this.hasVideo = hasVideo;
             return this;
@@ -433,7 +440,7 @@ public record NormalizedListing(
         }
 
         public NormalizedListing build() {
-            return new NormalizedListing(propertyType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, priceAmount, priceCurrency, priceEur, pricePerM2Eur, priceNegotiable, downPayment, rooms, roomsOpenEnded, hasLivingRoom, areaTotalM2, areaLivingM2, areaKitchenM2, landAreaM2, floor, floorKind, floorsTotal, bathrooms, balconies, ceilingHeightM, housingStock, buildingMaterial, buildingSeries, condition, developer, parking, region, locality, district, regionCode, localityCode, districtCode, streetRaw, houseNumberRaw, streetType, streetName, streetMatch, areaName, houseNumber, point, sellerPin, pinRadiusM, locationSource, locationPrecision, phoneHashes, photoKeys, hasVideo, amenities, crosslinks, issues);
+            return new NormalizedListing(propertyType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, priceAmount, priceCurrency, priceEur, pricePerM2Eur, priceNegotiable, downPayment, rooms, roomsOpenEnded, hasLivingRoom, areaTotalM2, areaLivingM2, areaKitchenM2, landAreaM2, floor, floorKind, floorsTotal, bathrooms, balconies, ceilingHeightM, housingStock, buildingMaterial, buildingSeries, condition, developer, parking, region, locality, district, regionCode, localityCode, districtCode, streetRaw, houseNumberRaw, streetType, streetName, streetMatch, areaName, houseNumber, point, sellerPin, pinRadiusM, locationSource, locationPrecision, phoneHashes, photoKeys, photoUrls, hasVideo, amenities, crosslinks, issues);
         }
     }
 }

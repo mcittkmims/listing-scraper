@@ -162,6 +162,7 @@ public final class ListingNormalizer {
         // Contacts and media
         out.phoneHashes(phones.hashes(ad.phones(), issues))
                 .photoKeys(List.copyOf(ad.photoKeys()))
+                .photoUrls(List.copyOf(ad.photoUrls()))
                 .hasVideo(ad.hasVideo())
                 .amenities(ad.amenities().stream().sorted().toList())
                 .crosslinks(List.copyOf(ad.crosslinks()));

@@ -29,6 +29,7 @@ import java.util.Set;
  * @param pinRadiusM null for a pin on the property; for a pin the site placed only near it, how far off it can be
  * @param phones phone numbers as published
  * @param photoKeys source photo ids, in order
+ * @param photoUrls the photos' current links, in the order of photoKeys, for sites whose links expire
  * @param amenities amenity codes, see Amenity
  * @param crosslinks the same ad on other sites, as the source names them: "999md:105689225"
  */
@@ -71,6 +72,7 @@ public record SourceAd(
         Integer pinRadiusM,
         List<String> phones,
         List<String> photoKeys,
+        List<String> photoUrls,
         boolean hasVideo,
         Set<String> amenities,
         List<String> crosslinks,
@@ -122,6 +124,7 @@ public record SourceAd(
         private Integer pinRadiusM;
         private List<String> phones = List.of();
         private List<String> photoKeys = List.of();
+        private List<String> photoUrls = List.of();
         private boolean hasVideo;
         private Set<String> amenities = Set.of();
         private List<String> crosslinks = List.of();
@@ -321,6 +324,11 @@ public record SourceAd(
             return this;
         }
 
+        public Builder photoUrls(List<String> photoUrls) {
+            this.photoUrls = photoUrls;
+            return this;
+        }
+
         public Builder hasVideo(boolean hasVideo) {
             this.hasVideo = hasVideo;
             return this;
@@ -347,7 +355,7 @@ public record SourceAd(
         }
 
         public SourceAd build() {
-            return new SourceAd(externalId, url, category, offerType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, price, rooms, livingRoom, propertyType, areaTotal, areaLiving, areaKitchen, landArea, ceilingHeight, floor, floorsTotal, housingStock, buildingMaterial, layout, condition, developer, bathrooms, balconies, parking, region, locality, district, street, houseNumber, pin, pinRadiusM, phones, photoKeys, hasVideo, amenities, crosslinks, postedAt, republishedAt);
+            return new SourceAd(externalId, url, category, offerType, sellerType, sellerName, sellerAccount, title, descriptionRo, descriptionRu, price, rooms, livingRoom, propertyType, areaTotal, areaLiving, areaKitchen, landArea, ceilingHeight, floor, floorsTotal, housingStock, buildingMaterial, layout, condition, developer, bathrooms, balconies, parking, region, locality, district, street, houseNumber, pin, pinRadiusM, phones, photoKeys, photoUrls, hasVideo, amenities, crosslinks, postedAt, republishedAt);
         }
     }
 }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.Optional;
 import md.apartmentlens.scraper.Fixtures;
@@ -48,6 +49,9 @@ class CasaMareSourceTest {
         SourceAd ad = SOURCE.parse(SOURCE.toRaw(ad("apartment.json")));
         assertThat(ad.url()).startsWith("https://casamare.md/").endsWith("-900001/");
         assertThat(ad.photoKeys()).containsExactly("https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-1-1.jpg");
+        // The signed link is kept too, for showing the photo while the signature is valid.
+        assertThat(ad.photoUrls()).containsExactly(
+                "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-1-1.jpg?X-Amz-Signature=abc");
         NormalizedListing l = normalizer.normalize(ad, LocalDate.of(2026, 10, 21));
         assertThat(l.propertyType()).isEqualTo("apartment");
         assertThat(l.sellerType()).isEqualTo("owner");
@@ -59,6 +63,11 @@ class CasaMareSourceTest {
         assertThat(l.locationPrecision()).isEqualTo("building");
         assertThat(l.descriptionRu()).isEqualTo("Продаю. Тестовое описание.");
         assertThat(l.phoneHashes()).hasSize(1);
+    }
+
+    @Test
+    void adsAreReadAgainBeforeTheirSignedPhotoLinksExpire() {
+        assertThat(SOURCE.detailMaxAge()).isLessThan(Duration.ofDays(7));
     }
 
     @Test
