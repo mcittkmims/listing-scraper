@@ -2,7 +2,7 @@
 
 Collects ads for [Apartment Lens](https://github.com/mcittkmims/apartment-lens) from 999.md and real-estate agency websites and turns them into clean, comparable data. It runs as its own process, so a crash or a block never affects the website.
 
-> **Status:** flats and houses for sale are collected from 999.md and Proimobil. More agency websites follow.
+> **Status:** flats and houses for sale are collected from 999.md, CasaMare and the agencies Proimobil, OkeyImobil, Realist and Romanescu.
 
 ## How it works
 
@@ -17,7 +17,13 @@ Each source has its own small parser; everything after it is shared.
 | Source | Read through | Notes |
 |---|---|---|
 | 999.md | The JSON API of its website | Flats, houses and country houses; the seller's pin |
+| CasaMare | The JSON API of its website | Private sellers and agents; a summary per ad, the ad when it changes |
 | Proimobil | The JSON API of its website | Names its copy of each ad on 999.md; sold ads and properties in Romania are left out |
+| OkeyImobil | The JSON API of its website | Names the 999.md ad each property came from |
+| Realist | Its HTML pages and their structured data | Pins the site marks as fuzzy only place an ad roughly |
+| Romanescu | Its HTML pages and their structured data | Approximate pins (a circle of a few hundred metres) |
+
+Carpatics is not collected: almost all of its ads are Proimobil's. Prime Imobil lists no flats or houses.
 
 Where a site lists only a summary of each ad, the whole ad is read when the summary changes, and at least once a week. Private data a site returns but does not publish (an owner's phone, agents' notes) is removed before anything is stored.
 

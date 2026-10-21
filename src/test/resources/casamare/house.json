@@ -1,0 +1,82 @@
+{
+  "id": "000000000000000000000002",
+  "displayId": 900002,
+  "slug": "case-ciorescu-str-viilor-900002",
+  "slugRu": "doma-ciorescu-str-viilor-900002",
+  "kind": "house",
+  "listingType": "sale",
+  "status": "active",
+  "title": "Anunț 2",
+  "publicTitle": "Casă cu 5 camere, 97 m², Ciorescu",
+  "publicTitleRu": "5-комнатный дом, 97 м², Чореску",
+  "description": "<p>Casă bătrânească, teren 1.317 mp.</p>",
+  "descriptionRu": "<p>Продаю. Тестовое описание.</p>",
+  "price": {
+    "amount": 190000,
+    "currency": "EUR"
+  },
+  "areaSqm": 97,
+  "landArea": 13.17,
+  "rooms": 5,
+  "bathrooms": 1,
+  "totalFloors": 1,
+  "renovation": "fara-reparatie",
+  "year": 1966,
+  "location": {
+    "city": "Ciorescu",
+    "address": "str. Viilor",
+    "geo": {
+      "lat": 47.13083,
+      "lng": 28.88603
+    }
+  },
+  "features": [
+    "Mobilat",
+    "Cu electrocasnice",
+    "Geamuri termopan",
+    "Încălzire autonomă",
+    "Gaz",
+    "Apă",
+    "Canalizare",
+    "Beci",
+    "Foișor"
+  ],
+  "specialOffers": [],
+  "offerCategories": [],
+  "isExclusive": false,
+  "isNew": true,
+  "verified": false,
+  "hidden": false,
+  "createdAt": "2026-10-18T17:30:21.095Z",
+  "updatedAt": "2026-10-20T17:28:45.251Z",
+  "photos": [
+    {
+      "webp": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-2-1.webp?X-Amz-Signature=abc",
+      "fallback": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-2-1.jpg?X-Amz-Signature=abc"
+    }
+  ],
+  "pricePerSqm": {
+    "amount": 1959,
+    "currency": "EUR"
+  },
+  "coverPhoto": {
+    "webp": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-2-1.webp?X-Amz-Signature=abc",
+    "fallback": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-2-1.jpg?X-Amz-Signature=abc"
+  },
+  "author": {
+    "kind": "owner",
+    "id": "",
+    "name": "Test Seller",
+    "title": "author.role_private",
+    "avatar": null,
+    "contacts": {
+      "phone": "+37369000001",
+      "email": "seller@example.md"
+    }
+  },
+  "views": {
+    "total": 3,
+    "today": 1
+  },
+  "agentId": null
+}

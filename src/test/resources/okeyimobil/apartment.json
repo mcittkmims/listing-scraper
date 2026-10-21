@@ -1,0 +1,168 @@
+{
+  "id": 900001,
+  "title": "Apartament, Botanica, GRENOBLE",
+  "address": "Grenoble",
+  "total_area": "112.00",
+  "ari": null,
+  "price": 179000,
+  "rooms": 3,
+  "bedrooms": 2,
+  "bathrooms": 2,
+  "description": "<div><strong>Spre vânzare</strong> apartament.</div><div>Test.</div>",
+  "floor": 10,
+  "total_floors": 12,
+  "deal": "sale",
+  "property_type": "apartments",
+  "state": "euro_renovation",
+  "status": null,
+  "construction": "old",
+  "commercial_space_type": null,
+  "land_space_type": null,
+  "promo": [],
+  "published": true,
+  "complex_id": null,
+  "location_id": 209,
+  "agent_id": 901,
+  "plan_id": null,
+  "deleted_at": null,
+  "created_at": "2026-04-17T07:15:04.000000Z",
+  "updated_at": "2026-06-26T21:54:05.000000Z",
+  "negotiable": false,
+  "views_count": 595,
+  "wp_post_id": null,
+  "wp_attachments_json": null,
+  "old_price": null,
+  "price_per_unit": null,
+  "heating_type": "autonomous",
+  "plan_type": null,
+  "is_individual_plan": false,
+  "recommended": false,
+  "notes": "Test Owner 069000002 (Agent) https://999.md/ro/100000201",
+  "reserved": false,
+  "publish_in_catalog": false,
+  "listed_at": "2026-04-17T07:15:04.000000Z",
+  "thumbnail": {
+    "original": "https://api.okeyimobil.md/storage/1/test-original.webp",
+    "large": "https://api.okeyimobil.md/storage/1/test-large.webp",
+    "medium": "https://api.okeyimobil.md/storage/1/test-medium.webp",
+    "small": "https://api.okeyimobil.md/storage/1/test-small.webp"
+  },
+  "gallery": {
+    "original": [
+      "https://api.okeyimobil.md/storage/1/test-original.webp"
+    ],
+    "large": [
+      "https://api.okeyimobil.md/storage/1/test-large.webp"
+    ],
+    "medium": [
+      "https://api.okeyimobil.md/storage/1/test-medium.webp"
+    ],
+    "small": [
+      "https://api.okeyimobil.md/storage/1/test-small.webp"
+    ],
+    "thumb": [
+      "https://api.okeyimobil.md/storage/1/test-thumb.webp"
+    ],
+    "xl": [
+      "https://api.okeyimobil.md/storage/1/test-xl.webp"
+    ]
+  },
+  "similar": [
+    {
+      "id": 1,
+      "title": "other"
+    }
+  ],
+  "similar_recent": [],
+  "agent": {
+    "id": 901,
+    "full_name": "Agent Test",
+    "phone": "79000001",
+    "email": "agent@example.md",
+    "position": "Specialist imobiliar",
+    "avatar": null,
+    "avatar_full": null,
+    "avatar_path": null,
+    "wp_attachments_json": "{}",
+    "wp_post_id": 1
+  },
+  "options": [
+    {
+      "id": 2,
+      "name": "Balcon",
+      "code": "balcon"
+    },
+    {
+      "id": 3,
+      "name": "Geamuri termopan",
+      "code": "geamuri_termopan"
+    },
+    {
+      "id": 4,
+      "name": "Grădiniţă",
+      "code": "gradinita"
+    },
+    {
+      "id": 6,
+      "name": "Încălzire autonomă",
+      "code": "incalzire_autonoma"
+    },
+    {
+      "id": 7,
+      "name": "Interfon",
+      "code": "interfon"
+    },
+    {
+      "id": 8,
+      "name": "Internet",
+      "code": "internet"
+    },
+    {
+      "id": 9,
+      "name": "Ascensor",
+      "code": "ascensor"
+    },
+    {
+      "id": 12,
+      "name": "Școală",
+      "code": "scoala"
+    },
+    {
+      "id": 13,
+      "name": "Supermarket",
+      "code": "supermarket"
+    },
+    {
+      "id": 14,
+      "name": "Teren de joacă",
+      "code": "teren_de_joaca"
+    },
+    {
+      "id": 15,
+      "name": "Uşă blindată",
+      "code": "usa_blindata"
+    },
+    {
+      "id": 1,
+      "name": "Cablu TV",
+      "code": "cablu_tv"
+    },
+    {
+      "id": 10,
+      "name": "Linie telefonică",
+      "code": "linie_telefonica"
+    }
+  ],
+  "videos": [],
+  "plan": null,
+  "facilities_list": [],
+  "location": {
+    "id": 209,
+    "name": "Botanica",
+    "region_id": 22,
+    "region": {
+      "id": 22,
+      "name": "Chișinău"
+    }
+  }
+}

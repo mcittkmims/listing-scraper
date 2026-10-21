@@ -1,0 +1,68 @@
+{
+  "id": "000000000000000000000001",
+  "displayId": 900001,
+  "slug": "apartament-vatra-str-luceafarul-str-luceafarul-900001",
+  "slugRu": "kvartira-vatra-str-luceafarul-str-luceafarul-900001",
+  "kind": "apartment",
+  "listingType": "sale",
+  "status": "active",
+  "title": "Anunț 1",
+  "publicTitle": "Apartament cu 1 cameră, 37 m², Centru, Vatra",
+  "publicTitleRu": "1-комнатная квартира, 37 м², Центр, Ватра",
+  "description": "<p>Apartament de vânzare.</p><p>Eligibil prin PRIMA CASĂ.</p>",
+  "descriptionRu": "<p>Продаю. Тестовое описание.</p>",
+  "price": {
+    "amount": 59000,
+    "currency": "EUR"
+  },
+  "areaSqm": 37,
+  "rooms": 1,
+  "floor": 5,
+  "location": {
+    "city": "Chișinău",
+    "address": "bd. Dacia 47/2",
+    "geo": {
+      "lat": 46.9881,
+      "lng": 28.85863
+    }
+  },
+  "features": [],
+  "specialOffers": [],
+  "offerCategories": [],
+  "isExclusive": false,
+  "isNew": true,
+  "verified": false,
+  "hidden": false,
+  "createdAt": "2026-10-21T07:36:54.225Z",
+  "updatedAt": "2026-10-21T07:36:54.225Z",
+  "photos": [
+    {
+      "webp": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-1-1.webp?X-Amz-Signature=abc",
+      "fallback": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-1-1.jpg?X-Amz-Signature=abc"
+    }
+  ],
+  "pricePerSqm": {
+    "amount": 1595,
+    "currency": "EUR"
+  },
+  "coverPhoto": {
+    "webp": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-1-1.webp?X-Amz-Signature=abc",
+    "fallback": "https://public-casamare.s3.eu-central-1.amazonaws.com/misc/test-1-1.jpg?X-Amz-Signature=abc"
+  },
+  "author": {
+    "kind": "owner",
+    "id": "",
+    "name": "Test Seller",
+    "title": "author.role_private",
+    "avatar": null,
+    "contacts": {
+      "phone": "+37369000001",
+      "email": "seller@example.md"
+    }
+  },
+  "views": {
+    "total": 3,
+    "today": 1
+  },
+  "agentId": null
+}

@@ -17,8 +17,12 @@ import md.apartmentlens.scraper.ref.CadastreImporter;
 import md.apartmentlens.scraper.ref.OsmImporter;
 import md.apartmentlens.scraper.ref.RefGazetteer;
 import md.apartmentlens.scraper.ref.RefStore;
+import md.apartmentlens.scraper.source.casamare.CasaMareSource;
 import md.apartmentlens.scraper.source.ninetynine.NineNineSource;
+import md.apartmentlens.scraper.source.okeyimobil.OkeyImobilSource;
 import md.apartmentlens.scraper.source.proimobil.ProimobilSource;
+import md.apartmentlens.scraper.source.realist.RealistSource;
+import md.apartmentlens.scraper.source.romanescu.RomanescuSource;
 import md.apartmentlens.scraper.store.CrawlRunRepository;
 import md.apartmentlens.scraper.store.DefaultPinRegistry;
 import md.apartmentlens.scraper.store.ExchangeRateRepository;
@@ -55,6 +59,26 @@ class ScraperConfiguration {
     @Bean
     ProimobilSource proimobilSource(PoliteHttpClient http, JsonMapper json) {
         return new ProimobilSource(http, json);
+    }
+
+    @Bean
+    CasaMareSource casaMareSource(PoliteHttpClient http, JsonMapper json) {
+        return new CasaMareSource(http, json);
+    }
+
+    @Bean
+    OkeyImobilSource okeyImobilSource(PoliteHttpClient http, JsonMapper json) {
+        return new OkeyImobilSource(http, json);
+    }
+
+    @Bean
+    RealistSource realistSource(PoliteHttpClient http, JsonMapper json) {
+        return new RealistSource(http, json);
+    }
+
+    @Bean
+    RomanescuSource romanescuSource(PoliteHttpClient http, JsonMapper json) {
+        return new RomanescuSource(http, json);
     }
 
     @Bean
